@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,7 +58,7 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 	following := make(map[string]interface{})
 	followersIRI := baseURL + name + "/followers"
 	publicKeyID := baseURL + name + "#main-key"
-	iri := baseURL + "/" + name
+	iri := baseURL + name
 	nuIri, err := url.Parse(iri)
 	if err != nil {
 		log.Info("Something went wrong when parsing the local actor uri into net/url")
@@ -193,6 +194,10 @@ func LoadActor(name string) (Actor, error) {
 	return actor, nil
 }
 
+// func LoadActorFromIRI(iri string) a Actor{
+
+// }
+
 // save the actor to file
 func (a *Actor) save() error {
 
@@ -250,20 +255,22 @@ func (a *Actor) whoAmI() string {
 	}`
 }
 
-func (a *Actor) newID() string {
+func (a *Actor) newIDhash() string {
 	return uniuri.New()
+}
+
+func (a *Actor) newIDurl() string {
+	return baseURL + a.name + "/" + a.newIDhash()
 }
 
 // CreateNote posts an activityPub note to our followers
 func (a *Actor) CreateNote(content string) {
 	// for now I will just write this to the outbox
 
-	id := a.newID()
+	id := a.newIDurl()
 	create := make(map[string]interface{})
 	note := make(map[string]interface{})
-	context := make([]string, 1)
-	context[0] = "https://www.w3.org/ns/activitystreams"
-	create["@context"] = context
+	create["@context"] = context()
 	create["actor"] = baseURL + a.name
 	create["cc"] = a.followersIRI
 	create["id"] = baseURL + a.name + "/" + id
@@ -279,34 +286,6 @@ func (a *Actor) CreateNote(content string) {
 	note["to"] = "https://www.w3.org/ns/activitystreams#Public"
 	create["published"] = note["published"]
 	create["type"] = "Create"
-
-	// note := `{
-	// 	"actor" : "https://` + baseURL + a.name + `",
-	// 	"cc" : [
-	// 	   "https://` + baseURL + a.name + `/followers"
-	// 	],
-	// 	"id" : "https://` + baseURL + a.name + `/` + id +`",
-	// 	"object" : {
-	// 	   "attributedTo" : "https://` + baseURL + a.name + `",
-	// 	   "cc" : [
-	// 		  "https://` + baseURL + a.name + `/followers"
-	// 	   ],
-	// 	   "content" : "`+ content + `",
-	// 	   "id" : "https://` + baseURL + a.name + `/` + id +`",
-	// 	   "inReplyTo" : null,
-	// 	   "published" : "2019-08-26T16:25:26Z",
-	// 	   "to" : [
-	// 		  "https://www.w3.org/ns/activitystreams#Public"
-	// 	   ],
-	// 	   "type" : "Note",
-	// 	   "url" : "https://` + baseURL + a.name + `/` + id +`"
-	// 	},
-	// 	"published" : "2019-08-26T16:25:26Z",
-	// 	"to" : [
-	// 	   "https://www.w3.org/ns/activitystreams#Public"
-	// 	],
-	// 	"type" : "Create"
-	//  }`
 	to, _ := url.Parse("https://cybre.space/inbox")
 	go a.send(create, to)
 	a.saveItem(id, create)
@@ -328,6 +307,33 @@ func (a *Actor) saveItem(id string, content map[string]interface{}) error {
 // not always required
 func (a *Actor) send(content map[string]interface{}, to *url.URL) (err error) {
 	return a.signedHTTPPost(content, to.String())
+}
+
+// GetFollowers returns a list of people that follow us
+func (a *Actor) GetFollowers(page int) (response []byte, err error) {
+	// if there's no page parameter mastodon displays an
+	// OrderedCollection with info of where to find orderedCollectionPages
+	// with the actual information. We are mirroring that behavior
+	themap := make(map[string]interface{})
+	themap["@context"] = "https://www.w3.org/ns/activitystreams"
+	if page == 0 {
+		themap["first"] = baseURL + a.name + "/followers?page=1"
+		themap["id"] = baseURL + a.name + "/followers"
+		themap["totalItems"] = strconv.Itoa(len(a.followers))
+		themap["type"] = "OrderedCollection"
+	} else if page == 1 { // implement pagination
+		themap["id"] = baseURL + a.name + "followers?page=" + strconv.Itoa(page)
+		items := make([]string, 0, len(a.followers))
+		for k := range a.followers {
+			items = append(items, k)
+		}
+		themap["orderedItems"] = items
+		themap["partOf"] = baseURL  + a.name + "/followers"
+		themap["totalItems"] = len(a.followers)
+		themap["type"] = "OrderedCollectionPage"
+	}
+	response, _ = json.Marshal(themap)
+	return
 }
 
 func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err error) {
@@ -357,7 +363,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 	}
 	req.Header.Add("Accept-Charset", "utf-8")
 	req.Header.Add("Date", time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05")+" GMT")
-	req.Header.Add("User-Agent", fmt.Sprintf("activityserve 0.0"))
+	req.Header.Add("User-Agent", userAgent + " " + version)
 	req.Header.Add("Host", iri.Host)
 	req.Header.Add("Accept", "application/activity+json")
 	sum := sha256.Sum256(b)
@@ -377,16 +383,16 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 	defer resp.Body.Close()
 	if !isSuccess(resp.StatusCode) {
 		responseData, _ := ioutil.ReadAll(resp.Body)
-		err = fmt.Errorf("POST request to %s failed (%d): %s\nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, formatJSON(responseData), formatJSON(byteCopy), req.Header)
+		err = fmt.Errorf("POST request to %s failed (%d): %s\nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, FormatJSON(responseData), FormatJSON(byteCopy), FormatHeaders(req.Header))
 		log.Info(err)
 		return
 	}
 	responseData, _ := ioutil.ReadAll(resp.Body)
-	fmt.Printf("POST request to %s succeeded (%d): %s \nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, formatJSON(responseData), formatJSON(byteCopy), req.Header)
+	fmt.Printf("POST request to %s succeeded (%d): %s \nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, FormatJSON(responseData), FormatJSON(byteCopy), FormatHeaders(req.Header))
 	return
 }
 
-func (a *Actor) signedHTTPGet(address string) (string, error){
+func (a *Actor) signedHTTPGet(address string) (string, error) {
 	req, err := http.NewRequest("GET", address, nil)
 	if err != nil {
 		log.Error("cannot create new http.request")
@@ -413,7 +419,7 @@ func (a *Actor) signedHTTPGet(address string) (string, error){
 		log.Error("Can't sign the request")
 		return "", err
 	}
-	
+
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Error("Cannot perform the GET request")
@@ -422,14 +428,20 @@ func (a *Actor) signedHTTPGet(address string) (string, error){
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		
+
 		responseData, _ := ioutil.ReadAll(resp.Body)
-		return "", fmt.Errorf("GET request to %s failed (%d): %s \n%s", iri.String(), resp.StatusCode, resp.Status, formatJSON(responseData))
+		return "", fmt.Errorf("GET request to %s failed (%d): %s \n%s", iri.String(), resp.StatusCode, resp.Status, FormatJSON(responseData))
 	}
 
 	responseData, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("GET request succeeded:", iri.String(), req.Header, resp.StatusCode, resp.Status, "\n", formatJSON(responseData))
+	fmt.Println("GET request succeeded:", iri.String(), req.Header, resp.StatusCode, resp.Status, "\n", FormatJSON(responseData))
 
 	responseText := string(responseData)
 	return responseText, nil
+}
+
+// NewFollower records a new follower to the actor file
+func (a *Actor) NewFollower(iri string) error {
+	a.followers[iri] = struct{}{}
+	return a.save()
 }

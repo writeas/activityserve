@@ -34,8 +34,19 @@ func PrettyPrintJSON(theJSON []byte) {
 	log.Info(dst)
 }
 
-func formatJSON(theJSON []byte) string{
+func FormatJSON(theJSON []byte) string {
 	dst := new(bytes.Buffer)
 	json.Indent(dst, theJSON, "", "\t")
 	return dst.String()
+}
+
+// FormatHeaders to string for printing
+func FormatHeaders(header http.Header) string {
+	buf := new(bytes.Buffer)
+	header.Write(buf)
+	return buf.String()
+}
+
+func context() [1]string {
+	return [1]string{"https://www.w3.org/ns/activitystreams"}
 }

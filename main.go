@@ -1,8 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"flag"
+	"fmt"
+
 	// "os"
 	// "strings"
 
@@ -25,7 +26,6 @@ import (
 
 	"./activityserve"
 )
-
 
 var err error
 
@@ -51,9 +51,11 @@ func main() {
 
 	activityserve.Setup("config.ini", *debugFlag)
 
-	actor, _ := activityserve.MakeActor("activityserve_test_actor_2", "This is an activityserve test actor", "Service")
+	// actor, _ := activityserve.MakeActor("activityserve_test_actor_2", "This is an activityserve test actor", "Service")
 	// actor, _ := activityserve.LoadActor("activityserve_test_actor_2")
-	actor.CreateNote("Hello World!")
+	// actor.CreateNote("Hello World!")
+
+	activityserve.LoadActor("activityserve_test_actor_2")
 
 	activityserve.Serve()
 }

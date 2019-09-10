@@ -2,8 +2,8 @@ package activityserve
 
 import (
 	"fmt"
-	"os"
 	"net/http"
+	"os"
 
 	"github.com/gologme/log"
 	"gopkg.in/ini.v1"
@@ -13,6 +13,7 @@ var slash = string(os.PathSeparator)
 var baseURL = "http://example.com/"
 var storage = "storage"
 var userAgent = "activityserve"
+var printer *log.Logger
 
 const libName = "activityserve"
 const version = "0.99"
@@ -61,7 +62,7 @@ func Setup(configurationFile string, debug bool) {
 	log.EnableLevel("warn")
 	// create a logger with levels but without prefixes for easier to read
 	// debug output
-	printer := log.New(os.Stdout, " ", 0)
+	printer = log.New(os.Stdout, " ", 0)
 
 	if debug == true {
 		fmt.Println()

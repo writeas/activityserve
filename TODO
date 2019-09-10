@@ -1,8 +1,3 @@
-[ ] Load outbox of users and parse latest posts
-[ ] Write these posts to local file
-    (normally we would need to sort by time but this is a 
-    temporary solution until we really follow the actors 
-    and get notifications in timely manner)
 [ ] Follow users
 [ ] Announcements (read up how boost json looks like)
 [ ] Federate the post to our followers (hardcoded for now)
@@ -13,14 +8,14 @@
 [ ] Handle the /actor endpoint
 [ ] Create configuration file
 [ ] Implement database backend
-    [ ] Create a file with the actors we have, their following
+    [✔] Create a file with the actors we have, their following
         and their followers.
-        [ ] `MakeActor` should create a file with that actor.
-        [ ] Implement `LoadActor`
+        [✔] `MakeActor` should create a file with that actor.
+        [✔] Implement `LoadActor`
         [ ] All but `main.go` should run LoadActor instead of MakeActor
             (Actually nobody should run LoadActor except GetActor)
         [ ] `actor.Follow` should write the new following to file
-        [ ] Handle being followed
+        [✔] Handle being followed
         [ ] When followed, the handler should write the new follower to file
         [ ] Make sure we send our boosts to all our followers
             Code is there but it works sometimes (I hate when this happens)
