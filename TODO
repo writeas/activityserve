@@ -39,8 +39,8 @@
 [ ] Create debug flag
 [ ] Write to following only upon accept
     (waiting to actually get an accept so that I can test this)
-[ ] Implement webfinger
-[ ] Make sure masto finds signature
+[✔] Implement webfinger
+[✔] Make sure masto finds signature
 [ ] Implement Unfollow
 [ ] Implement accept (accept when other follow us)
     (done but can't test it pending http signatures)
@@ -66,5 +66,3 @@
 [ ] Handle followers and following uri's
 [ ] Do I care about the inbox?
 [ ] Maybe look at implementing lock files?
-[ ] Check if it's worth it to reuse pubActor instead of creating
-    a new one every time

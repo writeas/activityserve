@@ -176,12 +176,14 @@ func Serve() {
 				return
 			}
 
+			follower, err := NewRemoteActor(activity["actor"].(string))
+
 			// check if this user is already following us
 			if _, ok := actor.followers[newFollower]; ok {
 				log.Info("You're already following us, yay!")
 				// do nothing, they're already following us
 			} else {
-				actor.NewFollower(newFollower)
+				actor.NewFollower(newFollower, follower.inbox)
 			}
 			// send accept anyway even if they are following us already
 			// this is very verbose. I would prefer creating a map by hand
@@ -198,7 +200,6 @@ func Serve() {
 			accept["object"] = activity
 			accept["type"] = "Accept"
 
-			follower, err := NewRemoteActor(activity["actor"].(string))
 
 			if err != nil {
 				log.Info("Couldn't retrieve remote actor info, maybe server is down?")
@@ -207,6 +208,44 @@ func Serve() {
 
 			go actor.signedHTTPPost(accept, follower.inbox)
 
+		case "Accept":
+			acceptor := activity["actor"].(string)
+			actor, err := LoadActor(mux.Vars(r)["actor"]) // load the actor from disk
+			if err != nil {
+				log.Error("No such actor")
+				return
+			}
+
+			follow := activity["object"].(map[string]interface{})
+			id := follow["id"].(string)
+
+			// check if the object of the follow is us
+			if follow["actor"].(string) != baseURL+actor.name {
+				log.Info("This is not for us, ignoring")
+				return
+			}
+			// try to get the hash only
+			hash := strings.Replace(id, baseURL+actor.name+"/", "", 1)
+			// if there are still slashes in the result this means the
+			// above didn't work
+			if strings.ContainsAny(hash, "/") {
+				log.Info("The id of this follow is probably wrong")
+				return
+			}
+
+			// Have we already requested this follow or are we following anybody that
+			// sprays accepts?
+			savedFollowRequest, err := actor.loadItem(hash)
+			if err != nil {
+				log.Info("We never requested this follow, ignoring the Accept")
+				return
+			}
+			if savedFollowRequest["id"] != id {
+				log.Info("Id mismatch between Follow request and Accept")
+				return
+			}
+			actor.following[acceptor] = hash
+			actor.save()
 		default:
 
 		}

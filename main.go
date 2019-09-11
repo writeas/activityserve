@@ -53,9 +53,11 @@ func main() {
 
 	// actor, _ := activityserve.MakeActor("activityserve_test_actor_2", "This is an activityserve test actor", "Service")
 	// actor, _ := activityserve.LoadActor("activityserve_test_actor_2")
+	// actor.Follow("https://cybre.space/users/tzo")
 	// actor.CreateNote("Hello World!")
 
-	activityserve.LoadActor("activityserve_test_actor_2")
+	actor, _ := activityserve.LoadActor("activityserve_test_actor_2")
+	actor.CreateNote("Hello World, again!")
 
 	activityserve.Serve()
 }

@@ -30,16 +30,16 @@ import (
 // Actor represents a local actor we can act on
 // behalf of.
 type Actor struct {
-	name, summary, actorType, iri string
-	followersIRI                  string
-	nuIri                         *url.URL
-	followers, following          map[string]interface{}
-	posts                         map[int]map[string]interface{}
-	publicKey                     crypto.PublicKey
-	privateKey                    crypto.PrivateKey
-	publicKeyPem                  string
-	privateKeyPem                 string
-	publicKeyID                   string
+	name, summary, actorType, iri  string
+	followersIRI                   string
+	nuIri                          *url.URL
+	followers, following, rejected map[string]interface{}
+	posts                          map[int]map[string]interface{}
+	publicKey                      crypto.PublicKey
+	privateKey                     crypto.PrivateKey
+	publicKeyPem                   string
+	privateKeyPem                  string
+	publicKeyID                    string
 }
 
 // ActorToSave is a stripped down actor representation
@@ -48,7 +48,7 @@ type Actor struct {
 // see https://stackoverflow.com/questions/26327391/json-marshalstruct-returns
 type ActorToSave struct {
 	Name, Summary, ActorType, IRI, PublicKey, PrivateKey string
-	Followers, Following                                 map[string]interface{}
+	Followers, Following, Rejected                       map[string]interface{}
 }
 
 // MakeActor returns a new local actor we can act
@@ -56,6 +56,7 @@ type ActorToSave struct {
 func MakeActor(name, summary, actorType string) (Actor, error) {
 	followers := make(map[string]interface{})
 	following := make(map[string]interface{})
+	rejected := make(map[string]interface{})
 	followersIRI := baseURL + name + "/followers"
 	publicKeyID := baseURL + name + "#main-key"
 	iri := baseURL + name
@@ -72,6 +73,7 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 		nuIri:        nuIri,
 		followers:    followers,
 		following:    following,
+		rejected:     rejected,
 		followersIRI: followersIRI,
 		publicKeyID:  publicKeyID,
 	}
@@ -183,6 +185,7 @@ func LoadActor(name string) (Actor, error) {
 		nuIri:         nuIri,
 		followers:     jsonData["Followers"].(map[string]interface{}),
 		following:     jsonData["Following"].(map[string]interface{}),
+		rejected:      jsonData["Rejected"].(map[string]interface{}),
 		publicKey:     publicKey,
 		privateKey:    privateKey,
 		publicKeyPem:  jsonData["PublicKey"].(string),
@@ -215,6 +218,7 @@ func (a *Actor) save() error {
 		IRI:        a.iri,
 		Followers:  a.followers,
 		Following:  a.following,
+		Rejected:   a.rejected,
 		PublicKey:  a.publicKeyPem,
 		PrivateKey: a.privateKeyPem,
 	}
@@ -263,6 +267,8 @@ func (a *Actor) newIDurl() string {
 	return baseURL + a.name + "/" + a.newIDhash()
 }
 
+// TODO Reply(content string, inReplyTo string)
+
 // CreateNote posts an activityPub note to our followers
 func (a *Actor) CreateNote(content string) {
 	// for now I will just write this to the outbox
@@ -278,7 +284,7 @@ func (a *Actor) CreateNote(content string) {
 	note["attributedTo"] = baseURL + a.name
 	note["cc"] = a.followersIRI
 	note["content"] = content
-	note["inReplyTo"] = "https://cybre.space/@qwazix/102688373602724023"
+	// note["inReplyTo"] = "https://cybre.space/@qwazix/102688373602724023"
 	note["id"] = baseURL + a.name + "/note/" + id
 	note["published"] = time.Now().Format(time.RFC3339)
 	note["url"] = create["id"]
@@ -286,21 +292,47 @@ func (a *Actor) CreateNote(content string) {
 	note["to"] = "https://www.w3.org/ns/activitystreams#Public"
 	create["published"] = note["published"]
 	create["type"] = "Create"
-	to, _ := url.Parse("https://cybre.space/inbox")
-	go a.send(create, to)
-	a.saveItem(id, create)
+	go a.sendToFollowers(create)
+	err := a.saveItem(id, create)
+	if err != nil {
+		log.Info("Could not save note to disk")
+	}
+	err = a.appendToOutbox(id)
+	if err != nil {
+		log.Info("Could not append Note to outbox.txt")
+	}
 }
 
-func (a *Actor) saveItem(id string, content map[string]interface{}) error {
+// saveItem saves an activity to disk under the actor and with the id as
+// filename
+func (a *Actor) saveItem(hash string, content map[string]interface{}) error {
 	JSON, _ := json.MarshalIndent(content, "", "\t")
 
 	dir := storage + slash + "actors" + slash + a.name + slash + "items"
-	err := ioutil.WriteFile(dir+slash+id+".json", JSON, 0644)
+	err := ioutil.WriteFile(dir+slash+hash+".json", JSON, 0644)
 	if err != nil {
 		log.Printf("WriteFileJson ERROR: %+v", err)
 		return err
 	}
 	return nil
+}
+
+func (a *Actor) loadItem(hash string) (item map[string]interface{}, err error) {
+	dir := storage + slash + "actors" + slash + a.name + slash + "items"
+	jsonFile := dir + slash + hash + ".json"
+	fileHandle, err := os.Open(jsonFile)
+	if os.IsNotExist(err) {
+		log.Info("We don't have this item stored")
+		return
+	}
+	byteValue, err := ioutil.ReadAll(fileHandle)
+	if err != nil {
+		log.Info("Error reading item file")
+		return
+	}
+	json.Unmarshal(byteValue, &item)
+
+	return
 }
 
 // send is here for backward compatibility and maybe extra pre-processing
@@ -328,7 +360,7 @@ func (a *Actor) GetFollowers(page int) (response []byte, err error) {
 			items = append(items, k)
 		}
 		themap["orderedItems"] = items
-		themap["partOf"] = baseURL  + a.name + "/followers"
+		themap["partOf"] = baseURL + a.name + "/followers"
 		themap["totalItems"] = len(a.followers)
 		themap["type"] = "OrderedCollectionPage"
 	}
@@ -363,7 +395,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 	}
 	req.Header.Add("Accept-Charset", "utf-8")
 	req.Header.Add("Date", time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05")+" GMT")
-	req.Header.Add("User-Agent", userAgent + " " + version)
+	req.Header.Add("User-Agent", userAgent+" "+version)
 	req.Header.Add("Host", iri.Host)
 	req.Header.Add("Accept", "application/activity+json")
 	sum := sha256.Sum256(b)
@@ -441,7 +473,119 @@ func (a *Actor) signedHTTPGet(address string) (string, error) {
 }
 
 // NewFollower records a new follower to the actor file
-func (a *Actor) NewFollower(iri string) error {
-	a.followers[iri] = struct{}{}
+func (a *Actor) NewFollower(iri string, inbox string) error {
+	a.followers[iri] = inbox
 	return a.save()
+}
+
+func (a *Actor) appendToOutbox(iri string) (err error) {
+	// create outbox file if it doesn't exist
+	var outbox *os.File
+
+	outboxFilePath := storage + slash + "actors" + slash + a.name + slash + "outbox"
+	outbox, err = os.OpenFile(outboxFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Info("Cannot create or open outbox file")
+		log.Info(err)
+		return err
+	}
+	defer outbox.Close()
+
+	outbox.Write([]byte(iri))
+
+	return nil
+}
+
+func (a *Actor) batchSend(activity map[string]interface{}, recipients []string) (err error) {
+	for _, v := range recipients {
+		err := a.signedHTTPPost(activity, v)
+		if err != nil {
+			log.Info("Failed to deliver message to " + v)
+		}
+	}
+	return
+}
+
+func (a *Actor) sendToFollowers(activity map[string]interface{}) (err error) {
+	recipients := make([]string, len(a.followers))
+
+	i := 0
+	for _, inbox := range a.followers {
+		recipients[i] = inbox.(string)
+		i++
+	}
+	a.batchSend(activity, recipients)
+	return
+}
+
+// Follow a remote user by their iri
+func (a *Actor) Follow(user string) (err error) {
+	remote, err := NewRemoteActor(user)
+	if err != nil {
+		log.Info("Can't contact " + user + " to get their inbox")
+		return
+	}
+
+	follow := make(map[string]interface{})
+	id := a.newIDhash()
+
+	follow["@context"] = context()
+	follow["actor"] = a.iri
+	follow["id"] = baseURL + a.name + "/" + id
+	follow["object"] = user
+	follow["type"] = "Follow"
+
+	// if we are not already following them
+	if _, ok := a.following[user]; !ok {
+		// if we have not been rejected previously
+		if _, ok := a.rejected[user]; !ok {
+			go func() {
+				err := a.signedHTTPPost(follow, remote.inbox)
+				if err != nil {
+					log.Info("Couldn't follow " + user)
+					log.Info(err)
+					return
+				}
+				// save the activity
+				a.saveItem(id, follow)
+				// we are going to save only on accept so look at
+				// the http handler for the accept code
+			}()
+		}
+	}
+
+	return nil
+}
+
+// Announce this activity to our followers
+func (a *Actor) Announce(url string) {
+	// our announcements are public. Public stuff have a "To" to the url below
+	toURL := "https://www.w3.org/ns/activitystreams#Public"
+	announce := make(map[string]interface{})
+
+	announce["@context"] = context()
+	announce["object"] = url
+	announce["actor"] = a.name
+	announce["to"] = toURL
+
+	// cc this to all our followers one by one
+	// I've seen activities to just include the url of the
+	// collection but for now this works.
+
+	// It seems that sharedInbox will be deprecated
+	// so this is probably a better idea anyway (#APConf)
+	announce["cc"] = a.followersSlice()
+
+	// add a timestamp
+	announce["published"] = time.Now().Format(time.RFC3339)
+
+	a.sendToFollowers(announce)
+}
+
+func (a *Actor) followersSlice() []string {
+	followersSlice := make([]string, len(a.followers))
+	for k := range a.followers {
+		followersSlice = append(followersSlice, k)
+	}
+	return followersSlice
 }
