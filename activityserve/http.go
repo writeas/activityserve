@@ -82,68 +82,79 @@ func Serve() {
 
 	var outboxHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "application/activity+json; charset=utf-8")
-		username := mux.Vars(r)["actor"]  // get the needed actor from the muxer (url variable {actor} below)
-		actor, err := LoadActor(username) // load the actor from disk
-		if err != nil {                   // either actor requested has illegal characters or
+		pageStr := r.URL.Query().Get("page") // get the page from the query string as string
+		username := mux.Vars(r)["actor"]     // get the needed actor from the muxer (url variable {actor} below)
+		actor, err := LoadActor(username)    // load the actor from disk
+		if err != nil {                      // either actor requested has illegal characters or
 			log.Info("Can't load local actor") // we don't have such actor
 			fmt.Fprintf(w, "404 - page not found")
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		var response string
-		if r.URL.Query().Get("page") == "" {
+		var response []byte
+		if pageStr == "" {
 			//TODO fix total items
-			response = `{
+			response = []byte(`{
 				"@context" : "https://www.w3.org/ns/activitystreams",
 				"first" : "` + baseURL + actor.name + `/outbox?page=true",
 				"id" : "` + baseURL + actor.name + `/outbox",
-				"last" : "` + baseURL + actor.name + `/outbox?min_id=0&page=true",
+				"last" : "` + baseURL + actor.name + `/outbox?min_id=0&page=1",
 				"totalItems" : 10, 
 				"type" : "OrderedCollection"
-			 }`
+			 }`)
 		} else {
-			content := "Hello, World!"
-			id := "asfdasdf"
-			response = `
-		{
-			"@context" : "https://www.w3.org/ns/activitystreams",
-			"id" : "` + baseURL + actor.name + `/outbox?min_id=0&page=true",
-			"next" : "` + baseURL + actor.name + `/outbox?max_id=99524642494530460&page=true",
-			"orderedItems" :[
-				{
-					"actor" : "https://` + baseURL + actor.name + `",
-					"cc" : [
-					   "https://` + baseURL + actor.name + `/followers"
-					],
-					"id" : "https://` + baseURL + actor.name + `/` + id + `",
-					"object" : {
-					   "attributedTo" : "https://` + baseURL + actor.name + `",
-					   "cc" : [
-						  "https://` + baseURL + actor.name + `/followers"
-					   ],
-					   "content" : "` + content + `",
-					   "id" : "https://` + baseURL + actor.name + `/` + id + `",
-					   "inReplyTo" : null,
-					   "published" : "2019-08-26T16:25:26Z",
-					   "to" : [
-						  "https://www.w3.org/ns/activitystreams#Public"
-					   ],
-					   "type" : "Note",
-					   "url" : "https://` + baseURL + actor.name + `/` + id + `"
-					},
-					"published" : "2019-08-26T16:25:26Z",
-					"to" : [
-					   "https://www.w3.org/ns/activitystreams#Public"
-					],
-					"type" : "Create"
-				 }
-			],
-			"partOf" : "` + baseURL + actor.name + `/outbox",
-			"prev" : "` + baseURL + actor.name + `/outbox?min_id=99982453036184436&page=true",
-			"type" : "OrderedCollectionPage"
-		 }`
+			page, err := strconv.Atoi(pageStr) // get page number from query string
+			if err != nil {
+				log.Info("Page number not a number, assuming 1")
+				page = 1
+			}
+			postsPerPage := 100
+			filename := storage + slash + "actors" + slash + actor.name + slash + "outbox.txt"
+			lines, err := ReadLines(filename, (page-1)*postsPerPage, page*(postsPerPage+1)-1)
+			if err != nil {
+				log.Info("Can't read outbox file")
+				log.Info(err)
+				return
+			}
+			responseMap := make(map[string]interface{})
+			responseMap["@context"] = context()
+			responseMap["id"] = baseURL + actor.name + "/outbox?page=" + pageStr
+			totalLines, err := lineCounter(filename)
+			if err != nil {
+				log.Info("The file was deleted? It was okay a few lines above. Wtf?")
+				log.Info(err)
+				return
+			}
+			if page*postsPerPage < totalLines {
+				responseMap["next"] = baseURL + actor.name + "/outbox?page=" + strconv.Itoa(page+1)
+			}
+			if page > 1 {
+				responseMap["prev"] = baseURL + actor.name + "/outbox?page=" + strconv.Itoa(page-1)
+			}
+			responseMap["partOf"] = baseURL + actor.name + "/outbox"
+			responseMap["type"] = "OrderedCollectionPage"
+
+			orderedItems := make(map[string]interface{})
+
+			for item := range lines {
+				// read the line
+				// parse the hash
+				// build the filename
+				// open the file
+				// unmarshal
+				// append to orderedItems
+			}
+
+			responseMap["orderedItems"] = orderedItems
+
+			response, err = json.Marshal(responseMap)
+			if err != nil {
+				log.Info("can't marshal map to json")
+				log.Info(err)
+				return
+			}
 		}
-		w.Write([]byte(response))
+		w.Write(response)
 	}
 
 	var inboxHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
@@ -199,7 +210,6 @@ func Serve() {
 			accept["actor"] = actor.iri
 			accept["object"] = activity
 			accept["type"] = "Accept"
-
 
 			if err != nil {
 				log.Info("Couldn't retrieve remote actor info, maybe server is down?")

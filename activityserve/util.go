@@ -1,7 +1,11 @@
 package activityserve
 
 import (
+	"bufio"
+	"io"
 	"net/http"
+	"os"
+
 	// 	"net/url"
 	"bytes"
 	"encoding/json"
@@ -49,4 +53,50 @@ func FormatHeaders(header http.Header) string {
 
 func context() [1]string {
 	return [1]string{"https://www.w3.org/ns/activitystreams"}
+}
+
+// ReadLines reads specific lines from a file and returns them as
+// an array of strings
+func ReadLines(filename string, from, to int) (lines []string, err error) {
+	lines = make([]string, to-from)
+	reader, err := os.Open(filename)
+	if err != nil {
+		log.Info("could not read file")
+		log.Info(err)
+		return
+	}
+	sc := bufio.NewScanner(reader)
+	line := 0
+	for sc.Scan() {
+		line++
+		if line >= from && line <= to {
+			lines = append(lines, sc.Text())
+		}
+	}
+	return lines, nil
+}
+
+func lineCounter(filename string) (int, error) {
+	r, err := os.Open(filename)
+	if err != nil {
+		log.Info("could not read file")
+		log.Info(err)
+		return 0, nil
+	}
+	buf := make([]byte, 32*1024)
+	count := 0
+	lineSep := []byte{'\n'}
+
+	for {
+		c, err := r.Read(buf)
+		count += bytes.Count(buf[:c], lineSep)
+
+		switch {
+		case err == io.EOF:
+			return count, nil
+
+		case err != nil:
+			return count, err
+		}
+	}
 }

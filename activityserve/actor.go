@@ -482,7 +482,7 @@ func (a *Actor) appendToOutbox(iri string) (err error) {
 	// create outbox file if it doesn't exist
 	var outbox *os.File
 
-	outboxFilePath := storage + slash + "actors" + slash + a.name + slash + "outbox"
+	outboxFilePath := storage + slash + "actors" + slash + a.name + slash + "outbox.txt"
 	outbox, err = os.OpenFile(outboxFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Info("Cannot create or open outbox file")
@@ -491,7 +491,7 @@ func (a *Actor) appendToOutbox(iri string) (err error) {
 	}
 	defer outbox.Close()
 
-	outbox.Write([]byte(iri))
+	outbox.Write([]byte(iri + "\n"))
 
 	return nil
 }
