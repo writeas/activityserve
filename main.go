@@ -47,6 +47,7 @@ func main() {
 
 	if *debugFlag == true {
 		log.EnableLevel("info")
+		log.EnableLevel("error")
 	}
 
 	activityserve.Setup("config.ini", *debugFlag)
@@ -56,8 +57,9 @@ func main() {
 	// actor.Follow("https://cybre.space/users/tzo")
 	// actor.CreateNote("Hello World!")
 
-	actor, _ := activityserve.LoadActor("activityserve_test_actor_2")
-	actor.CreateNote("Hello World, again!")
+	actor, _ :=
+	activityserve.LoadActor("activityserve_test_actor_2")
+	actor.CreateNote("I'm building #ActivityPub stuff")
 
 	activityserve.Serve()
 }

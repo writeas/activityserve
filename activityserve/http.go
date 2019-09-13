@@ -91,14 +91,22 @@ func Serve() {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		postsPerPage := 100
 		var response []byte
+		filename := storage + slash + "actors" + slash + actor.name + slash + "outbox.txt"
+		totalLines, err := lineCounter(filename)
+		if err != nil {
+			log.Info("Can't read outbox.txt")
+			log.Info(err)
+			return
+		}
 		if pageStr == "" {
 			//TODO fix total items
 			response = []byte(`{
 				"@context" : "https://www.w3.org/ns/activitystreams",
-				"first" : "` + baseURL + actor.name + `/outbox?page=true",
+				"first" : "` + baseURL + actor.name + `/outbox?page=1",
 				"id" : "` + baseURL + actor.name + `/outbox",
-				"last" : "` + baseURL + actor.name + `/outbox?min_id=0&page=1",
+				"last" : "` + baseURL + actor.name + `/outbox?page=` + strconv.Itoa(totalLines/postsPerPage+1) + `",
 				"totalItems" : 10, 
 				"type" : "OrderedCollection"
 			 }`)
@@ -108,8 +116,6 @@ func Serve() {
 				log.Info("Page number not a number, assuming 1")
 				page = 1
 			}
-			postsPerPage := 100
-			filename := storage + slash + "actors" + slash + actor.name + slash + "outbox.txt"
 			lines, err := ReadLines(filename, (page-1)*postsPerPage, page*(postsPerPage+1)-1)
 			if err != nil {
 				log.Info("Can't read outbox file")
@@ -119,12 +125,7 @@ func Serve() {
 			responseMap := make(map[string]interface{})
 			responseMap["@context"] = context()
 			responseMap["id"] = baseURL + actor.name + "/outbox?page=" + pageStr
-			totalLines, err := lineCounter(filename)
-			if err != nil {
-				log.Info("The file was deleted? It was okay a few lines above. Wtf?")
-				log.Info(err)
-				return
-			}
+
 			if page*postsPerPage < totalLines {
 				responseMap["next"] = baseURL + actor.name + "/outbox?page=" + strconv.Itoa(page+1)
 			}
@@ -134,15 +135,28 @@ func Serve() {
 			responseMap["partOf"] = baseURL + actor.name + "/outbox"
 			responseMap["type"] = "OrderedCollectionPage"
 
-			orderedItems := make(map[string]interface{})
+			orderedItems := make([]interface{}, 0, postsPerPage)
 
-			for item := range lines {
-				// read the line
-				// parse the hash
+			for _, item := range lines {
+				// split the line
+				parts := strings.Split(item, "/")
+
+				// keep the hash
+				hash := parts[len(parts)-1]
 				// build the filename
+				filename := storage + slash + "actors" + slash + actor.name + slash + "items" + slash + hash + ".json"
 				// open the file
-				// unmarshal
+				activityJSON, err := ioutil.ReadFile(filename)
+				if err != nil {
+					log.Error("can't read activity")
+					log.Info(filename)
+					return
+				}
+				var temp map[string]interface{}
+				// put it into a map
+				json.Unmarshal(activityJSON, &temp)
 				// append to orderedItems
+				orderedItems = append(orderedItems, temp)
 			}
 
 			responseMap["orderedItems"] = orderedItems
@@ -173,51 +187,13 @@ func Serve() {
 		// check if case is going to be an issue
 		switch activity["type"] {
 		case "Follow":
-			// it's a follow, write it down
-			newFollower := activity["actor"].(string)
-			// check we aren't following ourselves
-			if newFollower == activity["object"] {
-				log.Info("You can't follow yourself")
-				return
-			}
 			// load the object as actor
 			actor, err := LoadActor(mux.Vars(r)["actor"]) // load the actor from disk
 			if err != nil {
 				log.Error("No such actor")
 				return
 			}
-
-			follower, err := NewRemoteActor(activity["actor"].(string))
-
-			// check if this user is already following us
-			if _, ok := actor.followers[newFollower]; ok {
-				log.Info("You're already following us, yay!")
-				// do nothing, they're already following us
-			} else {
-				actor.NewFollower(newFollower, follower.inbox)
-			}
-			// send accept anyway even if they are following us already
-			// this is very verbose. I would prefer creating a map by hand
-
-			// remove @context from the inner activity
-			delete(activity, "@context")
-
-			accept := make(map[string]interface{})
-
-			accept["@context"] = "https://www.w3.org/ns/activitystreams"
-			accept["to"] = activity["actor"]
-			accept["id"] = actor.newIDurl()
-			accept["actor"] = actor.iri
-			accept["object"] = activity
-			accept["type"] = "Accept"
-
-			if err != nil {
-				log.Info("Couldn't retrieve remote actor info, maybe server is down?")
-				log.Info(err)
-			}
-
-			go actor.signedHTTPPost(accept, follower.inbox)
-
+			actor.OnFollow(activity)
 		case "Accept":
 			acceptor := activity["actor"].(string)
 			actor, err := LoadActor(mux.Vars(r)["actor"]) // load the actor from disk
@@ -225,6 +201,8 @@ func Serve() {
 				log.Error("No such actor")
 				return
 			}
+
+			// From here down this could be moved to Actor (TBD)
 
 			follow := activity["object"].(map[string]interface{})
 			id := follow["id"].(string)

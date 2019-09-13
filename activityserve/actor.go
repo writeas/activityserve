@@ -40,6 +40,7 @@ type Actor struct {
 	publicKeyPem                   string
 	privateKeyPem                  string
 	publicKeyID                    string
+	OnFollow					   func(map[string]interface{})
 }
 
 // ActorToSave is a stripped down actor representation
@@ -77,6 +78,9 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 		followersIRI: followersIRI,
 		publicKeyID:  publicKeyID,
 	}
+	
+	// set auto accept by default (this could be a configuration value)
+	actor.OnFollow = func(activity map[string]interface{}) {actor.Accept(activity)}
 
 	// create actor's keypair
 	rng := rand.Reader
@@ -273,19 +277,19 @@ func (a *Actor) newIDurl() string {
 func (a *Actor) CreateNote(content string) {
 	// for now I will just write this to the outbox
 
-	id := a.newIDurl()
+	hash := a.newIDhash()
 	create := make(map[string]interface{})
 	note := make(map[string]interface{})
 	create["@context"] = context()
 	create["actor"] = baseURL + a.name
 	create["cc"] = a.followersIRI
-	create["id"] = baseURL + a.name + "/" + id
+	create["id"] = baseURL + a.name + "/" + hash
 	create["object"] = note
 	note["attributedTo"] = baseURL + a.name
 	note["cc"] = a.followersIRI
 	note["content"] = content
 	// note["inReplyTo"] = "https://cybre.space/@qwazix/102688373602724023"
-	note["id"] = baseURL + a.name + "/note/" + id
+	note["id"] = baseURL + a.name + "/note/" + hash
 	note["published"] = time.Now().Format(time.RFC3339)
 	note["url"] = create["id"]
 	note["type"] = "Note"
@@ -293,11 +297,11 @@ func (a *Actor) CreateNote(content string) {
 	create["published"] = note["published"]
 	create["type"] = "Create"
 	go a.sendToFollowers(create)
-	err := a.saveItem(id, create)
+	err := a.saveItem(hash, create)
 	if err != nil {
 		log.Info("Could not save note to disk")
 	}
-	err = a.appendToOutbox(id)
+	err = a.appendToOutbox(baseURL + a.name + "/" + hash)
 	if err != nil {
 		log.Info("Could not append Note to outbox.txt")
 	}
@@ -588,4 +592,47 @@ func (a *Actor) followersSlice() []string {
 		followersSlice = append(followersSlice, k)
 	}
 	return followersSlice
+}
+
+// Accept a follow request
+func (a *Actor) Accept(follow map[string]interface{}){
+	// it's a follow, write it down
+	newFollower := follow["actor"].(string)
+	// check we aren't following ourselves
+	if newFollower == follow["object"] {
+		log.Info("You can't follow yourself")
+		return
+	}
+
+	follower, err := NewRemoteActor(follow["actor"].(string))
+
+	// check if this user is already following us
+	if _, ok := a.followers[newFollower]; ok {
+		log.Info("You're already following us, yay!")
+		// do nothing, they're already following us
+	} else {
+		a.NewFollower(newFollower, follower.inbox)
+	}
+	// send accept anyway even if they are following us already
+	// this is very verbose. I would prefer creating a map by hand
+
+	// remove @context from the inner activity
+	delete(follow, "@context")
+
+	accept := make(map[string]interface{})
+
+	accept["@context"] = "https://www.w3.org/ns/activitystreams"
+	accept["to"] = follow["actor"]
+	accept["id"] = a.newIDurl()
+	accept["actor"] = a.iri
+	accept["object"] = follow
+	accept["type"] = "Accept"
+
+	if err != nil {
+		log.Info("Couldn't retrieve remote actor info, maybe server is down?")
+		log.Info(err)
+	}
+
+	go a.signedHTTPPost(accept, follower.inbox)
+	
 }

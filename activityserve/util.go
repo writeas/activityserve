@@ -58,7 +58,7 @@ func context() [1]string {
 // ReadLines reads specific lines from a file and returns them as
 // an array of strings
 func ReadLines(filename string, from, to int) (lines []string, err error) {
-	lines = make([]string, to-from)
+	lines = make([]string, 0, to-from)
 	reader, err := os.Open(filename)
 	if err != nil {
 		log.Info("could not read file")
