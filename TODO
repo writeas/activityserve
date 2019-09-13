@@ -1,68 +1,54 @@
-[ ] Follow users
-[ ] Announcements (read up how boost json looks like)
-[ ] Federate the post to our followers (hardcoded for now)
-[ ] Actor should have pubActor not the other way around
-[ ] Handle more than one local actors
-[ ] Fix the json to host those multiple actors
-[ ] Fix the json unmarshalling code to read multiple actors
-[ ] Handle the /actor endpoint
-[ ] Create configuration file
+[✔] Follow users
+[ ] Announcements
+[✔] Federate the post to our followers (hardcoded for now)
+[✔] Handle more than one local actors
+[✔] Handle the /actor endpoint
+[✔] Create configuration file
 [ ] Implement database backend
     [✔] Create a file with the actors we have, their following
         and their followers.
         [✔] `MakeActor` should create a file with that actor.
         [✔] Implement `LoadActor`
-        [ ] All but `main.go` should run LoadActor instead of MakeActor
-            (Actually nobody should run LoadActor except GetActor)
-        [ ] `actor.Follow` should write the new following to file
+        [✔] `actor.Follow` should write the new following to file
         [✔] Handle being followed
-        [ ] When followed, the handler should write the new follower to file
+        [✔] When followed, the handler should write the new follower to file
         [ ] Make sure we send our boosts to all our followers
-            Code is there but it works sometimes (I hate when this happens)
-        [ ] Check why I get calls to get with an id that consists only of an actor's name
-        [ ] Implement `db.followers` and `db.following`
+[ ] Write incoming activities to disk (do we have to?)        
 [ ] Write all the announcements (boosts) to the database to 
     their correct actors
-[ ] Check if we are already following users
-[ ] On GetOutbox read the database and present a list of the
+[✔] Check if we are already following users
+[✔] On GetOutbox read the database and present a list of the
     last posts.
-[ ] Make OS-independent (mosty directory separators)
-[ ] Create outbox.json programmatically
-[ ] Make storage configurable (search for "storage" in project)
+[✔] Make OS-independent (mosty directory separators)
+[✔] Create outbox.json programmatically
+[✔] Make storage configurable (search for "storage" in project)
 [ ] Check if we're boosting only stuff from actors we follow, not whatever comes
     through in our inbox
-[ ] Boost not only articles but other things too
-[ ] Handle post uri's
+[✔] Boost not only articles but other things too
 [ ] Sanitize input, never allow slashes or dots
-[ ] Add summary to actors.json
+[✔] Add summary to actors.json
 [ ] Check local actor names for characters illegal for filenames and ban them
-[ ] Create debug flag
-[ ] Write to following only upon accept
+[✔] Create debug flag
+[✔] Write to following only upon accept
     (waiting to actually get an accept so that I can test this)
 [✔] Implement webfinger
 [✔] Make sure masto finds signature
 [ ] Implement Unfollow
-[ ] Implement accept (accept when other follow us)
+[✔] Implement accept (accept when other follow us)
     (done but can't test it pending http signatures)
     Works in pleroma/pixelfed not working on masto
     (nothing works on masto)
 [ ] Implement nodeinfo and statistics
-[ ] Accept even if already follows us
-[ ] Implement db.Update
-[ ] Implement db.Delete
-[ ] Handle paging
-[ ] Handle http signatures
-    masto can't find the signature
+[✔] Accept even if already follows us
+[✔] Handle paging
+[ ] Test paging
+[✔] Handle http signatures
 [ ] Verify http signatures
-[ ] Why doesn't our outbox being fetched by others?
 [ ] Refactor, comment and clean up
-[ ] Make sure we never show <actor>.json to the public
 [ ] Split to pherephone and activityServe
 [ ] Decide what's to be done with actors removed from `actors.json`.
     [ ] Remove them?
     [ ] Leave them read-only?
     [ ] Leave them as is?
-[ ] Check if an early failure in announcing posts causes a problem to the following ones
 [ ] Handle followers and following uri's
 [ ] Do I care about the inbox?
-[ ] Maybe look at implementing lock files?
