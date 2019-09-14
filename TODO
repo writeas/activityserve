@@ -1,10 +1,10 @@
 [✔] Follow users
-[ ] Announcements
+[✔] Announcements
 [✔] Federate the post to our followers (hardcoded for now)
 [✔] Handle more than one local actors
 [✔] Handle the /actor endpoint
 [✔] Create configuration file
-[ ] Implement database backend
+[✔] Implement database backend
     [✔] Create a file with the actors we have, their following
         and their followers.
         [✔] `MakeActor` should create a file with that actor.
@@ -12,7 +12,7 @@
         [✔] `actor.Follow` should write the new following to file
         [✔] Handle being followed
         [✔] When followed, the handler should write the new follower to file
-        [ ] Make sure we send our boosts to all our followers
+        [✔] Make sure we send our boosts to all our followers
 [ ] Write incoming activities to disk (do we have to?)        
 [ ] Write all the announcements (boosts) to the database to 
     their correct actors
@@ -33,7 +33,7 @@
     (waiting to actually get an accept so that I can test this)
 [✔] Implement webfinger
 [✔] Make sure masto finds signature
-[ ] Implement Unfollow
+[✔] Implement Unfollow
 [✔] Implement accept (accept when other follow us)
     (done but can't test it pending http signatures)
     Works in pleroma/pixelfed not working on masto
@@ -50,5 +50,5 @@
     [ ] Remove them?
     [ ] Leave them read-only?
     [ ] Leave them as is?
-[ ] Handle followers and following uri's
+[✔] Handle followers and following uri's
 [ ] Do I care about the inbox?

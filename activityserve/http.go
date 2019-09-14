@@ -237,12 +237,17 @@ func Serve() {
 		default:
 
 		}
-
 	}
 
-	var followersHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+	var peersHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "application/activity+json; charset=utf-8")
 		username := mux.Vars(r)["actor"]
+		collection := mux.Vars(r)["peers"]
+		if collection != "followers" && collection != "following" {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("404 - No such collection"))
+			return
+		}
 		actor, err := LoadActor(username)
 		// error out if this actor does not exist
 		if err != nil {
@@ -256,21 +261,45 @@ func Serve() {
 		} else {
 			page, _ = strconv.Atoi(pageS)
 		}
-		response, _ := actor.GetFollowers(page)
+		response, _ := actor.getPeers(page, collection)
 		w.Write(response)
+	}
+
+	var postHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/activity+json; charset=utf-8")
+		username := mux.Vars(r)["actor"]
+		hash := mux.Vars(r)["hash"]
+		actor, err := LoadActor(username)
+		// error out if this actor does not exist
+		if err != nil {
+			log.Info("Can't create local actor")
+			return
+		}
+		post, err := actor.loadItem(hash)
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, "404 - post not found")
+			return
+		}
+		postJSON, err := json.Marshal(post)
+		if err!= nil{
+			log.Info("failed to marshal json from item " + hash + " text")
+			return
+		}
+		w.Write(postJSON)
 	}
 
 	// Add the handlers to a HTTP server
 	gorilla := mux.NewRouter()
 	gorilla.HandleFunc("/.well-known/webfinger", webfingerHandler)
-	gorilla.HandleFunc("/{actor}/followers", followersHandler)
+	gorilla.HandleFunc("/{actor}/peers/{peers}", peersHandler)
 	gorilla.HandleFunc("/{actor}/outbox", outboxHandler)
 	gorilla.HandleFunc("/{actor}/outbox/", outboxHandler)
 	gorilla.HandleFunc("/{actor}/inbox", inboxHandler)
 	gorilla.HandleFunc("/{actor}/inbox/", inboxHandler)
 	gorilla.HandleFunc("/{actor}/", actorHandler)
 	gorilla.HandleFunc("/{actor}", actorHandler)
-	// gorilla.HandleFunc("/{actor}/post/{hash}", postHandler)
+	gorilla.HandleFunc("/{actor}/item/{hash}", postHandler)
 	http.Handle("/", gorilla)
 
 	log.Fatal(http.ListenAndServe(":8081", nil))

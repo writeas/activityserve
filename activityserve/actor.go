@@ -40,7 +40,7 @@ type Actor struct {
 	publicKeyPem                   string
 	privateKeyPem                  string
 	publicKeyID                    string
-	OnFollow					   func(map[string]interface{})
+	OnFollow                       func(map[string]interface{})
 }
 
 // ActorToSave is a stripped down actor representation
@@ -78,9 +78,9 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 		followersIRI: followersIRI,
 		publicKeyID:  publicKeyID,
 	}
-	
+
 	// set auto accept by default (this could be a configuration value)
-	actor.OnFollow = func(activity map[string]interface{}) {actor.Accept(activity)}
+	actor.OnFollow = func(activity map[string]interface{}) { actor.Accept(activity) }
 
 	// create actor's keypair
 	rng := rand.Reader
@@ -252,9 +252,8 @@ func (a *Actor) whoAmI() string {
 	"summary": "` + a.summary + `",
 	"inbox": "` + baseURL + a.name + `/inbox",
 	"outbox": "` + baseURL + a.name + `/outbox",
-	"followers": "` + baseURL + a.name + `/followers",
-	"following": "` + baseURL + a.name + `/following",
-	"liked": "` + baseURL + a.name + `/liked",
+	"followers": "` + baseURL + a.name + `/peers/followers",
+	"following": "` + baseURL + a.name + `/peers/following",
 	"publicKey": {
 		"id": "` + baseURL + a.name + `#main-key",
 		"owner": "` + baseURL + a.name + `",
@@ -263,33 +262,39 @@ func (a *Actor) whoAmI() string {
 	}`
 }
 
-func (a *Actor) newIDhash() string {
-	return uniuri.New()
-}
-
-func (a *Actor) newIDurl() string {
-	return baseURL + a.name + "/" + a.newIDhash()
+func (a *Actor) newID() (hash string, url string) {
+	hash = uniuri.New()
+	return hash, baseURL + a.name + "/item/" + hash
 }
 
 // TODO Reply(content string, inReplyTo string)
 
-// CreateNote posts an activityPub note to our followers
-func (a *Actor) CreateNote(content string) {
-	// for now I will just write this to the outbox
+// ReplyNote sends a note to a specific actor in reply to
+// a post
+//TODO
 
-	hash := a.newIDhash()
+// DM sends a direct message to a user
+// TODO
+
+// CreateNote posts an activityPub note to our followers
+//
+func (a *Actor) CreateNote(content, inReplyTo string) {
+	// for now I will just write this to the outbox
+	hash, id := a.newID()
 	create := make(map[string]interface{})
 	note := make(map[string]interface{})
 	create["@context"] = context()
 	create["actor"] = baseURL + a.name
 	create["cc"] = a.followersIRI
-	create["id"] = baseURL + a.name + "/" + hash
+	create["id"] = id
 	create["object"] = note
 	note["attributedTo"] = baseURL + a.name
 	note["cc"] = a.followersIRI
 	note["content"] = content
-	// note["inReplyTo"] = "https://cybre.space/@qwazix/102688373602724023"
-	note["id"] = baseURL + a.name + "/note/" + hash
+	if inReplyTo != "" {
+		note["inReplyTo"] = inReplyTo
+	}
+	note["id"] = id
 	note["published"] = time.Now().Format(time.RFC3339)
 	note["url"] = create["id"]
 	note["type"] = "Note"
@@ -301,7 +306,7 @@ func (a *Actor) CreateNote(content string) {
 	if err != nil {
 		log.Info("Could not save note to disk")
 	}
-	err = a.appendToOutbox(baseURL + a.name + "/" + hash)
+	err = a.appendToOutbox(id)
 	if err != nil {
 		log.Info("Could not append Note to outbox.txt")
 	}
@@ -345,31 +350,50 @@ func (a *Actor) send(content map[string]interface{}, to *url.URL) (err error) {
 	return a.signedHTTPPost(content, to.String())
 }
 
-// GetFollowers returns a list of people that follow us
-func (a *Actor) GetFollowers(page int) (response []byte, err error) {
+// getPeers gets followers or following depending on `who`
+func (a *Actor) getPeers(page int, who string) (response []byte, err error) {
 	// if there's no page parameter mastodon displays an
 	// OrderedCollection with info of where to find orderedCollectionPages
 	// with the actual information. We are mirroring that behavior
+
+	var collection map[string]interface{}
+	if who == "followers" {
+		collection = a.followers
+	} else if who == "following" {
+		collection = a.following
+	} else {
+		return nil, errors.New("cannot find collection" + who)
+	}
 	themap := make(map[string]interface{})
 	themap["@context"] = "https://www.w3.org/ns/activitystreams"
 	if page == 0 {
-		themap["first"] = baseURL + a.name + "/followers?page=1"
-		themap["id"] = baseURL + a.name + "/followers"
-		themap["totalItems"] = strconv.Itoa(len(a.followers))
+		themap["first"] = baseURL + a.name + "/" + who + "?page=1"
+		themap["id"] = baseURL + a.name + "/" + who
+		themap["totalItems"] = strconv.Itoa(len(collection))
 		themap["type"] = "OrderedCollection"
 	} else if page == 1 { // implement pagination
-		themap["id"] = baseURL + a.name + "followers?page=" + strconv.Itoa(page)
-		items := make([]string, 0, len(a.followers))
-		for k := range a.followers {
+		themap["id"] = baseURL + a.name + who + "?page=" + strconv.Itoa(page)
+		items := make([]string, 0, len(collection))
+		for k := range collection {
 			items = append(items, k)
 		}
 		themap["orderedItems"] = items
-		themap["partOf"] = baseURL + a.name + "/followers"
-		themap["totalItems"] = len(a.followers)
+		themap["partOf"] = baseURL + a.name + "/" + who
+		themap["totalItems"] = len(collection)
 		themap["type"] = "OrderedCollectionPage"
 	}
 	response, _ = json.Marshal(themap)
 	return
+}
+
+// GetFollowers returns a list of people that follow us
+func (a *Actor) GetFollowers(page int) (response []byte, err error) {
+	return a.getPeers(page, "followers")
+}
+
+// GetFollowing returns a list of people that we follow
+func (a *Actor) GetFollowing(page int) (response []byte, err error) {
+	return a.getPeers(page, "following")
 }
 
 func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err error) {
@@ -531,11 +555,11 @@ func (a *Actor) Follow(user string) (err error) {
 	}
 
 	follow := make(map[string]interface{})
-	id := a.newIDhash()
+	_, id := a.newID()
 
 	follow["@context"] = context()
 	follow["actor"] = a.iri
-	follow["id"] = baseURL + a.name + "/" + id
+	follow["id"] = id
 	follow["object"] = user
 	follow["type"] = "Follow"
 
@@ -561,13 +585,69 @@ func (a *Actor) Follow(user string) (err error) {
 	return nil
 }
 
+// Unfollow the user declared by the iri in `user`
+// this recreates the original follow activity
+// , wraps it in an Undo activity, sets it's
+// id to the id of the original Follow activity that
+// was accepted when initially following that user
+// (this is read from the `actor.following` map
+func (a *Actor) Unfollow(user string){
+	log.Info("Unfollowing " + user)
+
+	// create an undo activiy
+	undo := make(map[string]interface{})
+	undo["@context"] = context()
+	undo["actor"] = a.iri
+
+	// find the id of the original follow
+	hash := a.following[user].(string)
+
+	follow := make(map[string]interface{})
+
+	follow["@context"] = context()
+	follow["actor"] = a.iri
+	follow["id"] = baseURL + "/item/" + hash 
+	follow["object"] = user
+	follow["type"] = "Follow"
+
+	// add the properties to the undo activity
+	undo["object"] = follow
+
+	// get the remote user's inbox
+	remoteUser, err := NewRemoteActor(user)
+	if err != nil {
+		log.Info("Failed to contact remote actor")
+		return
+	}
+
+	// only if we're already following them
+	if _, ok := a.following[user]; ok {
+		PrettyPrint(undo)
+		go func() {
+			err := a.signedHTTPPost(remoteUser.inbox, undo)
+			if err != nil {
+				log.Info("Couldn't unfollow " + user)
+				log.Info(err)
+				return
+			}
+			// if there was no error then delete the follow
+			// from the list
+			delete(a.following, user)
+			a.save()
+		}()
+	}
+}
+
 // Announce this activity to our followers
 func (a *Actor) Announce(url string) {
 	// our announcements are public. Public stuff have a "To" to the url below
 	toURL := "https://www.w3.org/ns/activitystreams#Public"
+	id, hash := a.newID()
+
 	announce := make(map[string]interface{})
 
 	announce["@context"] = context()
+	announce["id"] = id
 	announce["object"] = url
 	announce["actor"] = a.name
 	announce["to"] = toURL
@@ -583,6 +663,8 @@ func (a *Actor) Announce(url string) {
 	// add a timestamp
 	announce["published"] = time.Now().Format(time.RFC3339)
 
+	a.appendToOutbox(announce["id"].(string))
+	a.saveItem(hash, announce)
 	a.sendToFollowers(announce)
 }
 
@@ -595,7 +677,7 @@ func (a *Actor) followersSlice() []string {
 }
 
 // Accept a follow request
-func (a *Actor) Accept(follow map[string]interface{}){
+func (a *Actor) Accept(follow map[string]interface{}) {
 	// it's a follow, write it down
 	newFollower := follow["actor"].(string)
 	// check we aren't following ourselves
@@ -623,7 +705,7 @@ func (a *Actor) Accept(follow map[string]interface{}){
 
 	accept["@context"] = "https://www.w3.org/ns/activitystreams"
 	accept["to"] = follow["actor"]
-	accept["id"] = a.newIDurl()
+	accept["id"], _ = a.newID()
 	accept["actor"] = a.iri
 	accept["object"] = follow
 	accept["type"] = "Accept"
@@ -633,6 +715,7 @@ func (a *Actor) Accept(follow map[string]interface{}){
 		log.Info(err)
 	}
 
+	// Maybe we need to save this accept?
 	go a.signedHTTPPost(accept, follower.inbox)
-	
+
 }
