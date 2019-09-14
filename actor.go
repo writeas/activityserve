@@ -624,7 +624,7 @@ func (a *Actor) Unfollow(user string){
 	if _, ok := a.following[user]; ok {
 		PrettyPrint(undo)
 		go func() {
-			err := a.signedHTTPPost(remoteUser.inbox, undo)
+			err := a.signedHTTPPost(undo, remoteUser.inbox)
 			if err != nil {
 				log.Info("Couldn't unfollow " + user)
 				log.Info(err)
