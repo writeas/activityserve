@@ -107,7 +107,7 @@ func Serve() {
 				"first" : "` + baseURL + actor.name + `/outbox?page=1",
 				"id" : "` + baseURL + actor.name + `/outbox",
 				"last" : "` + baseURL + actor.name + `/outbox?page=` + strconv.Itoa(totalLines/postsPerPage+1) + `",
-				"totalItems" : 10, 
+				"totalItems" : ` + strconv.Itoa(totalLines) + `, 
 				"type" : "OrderedCollection"
 			 }`)
 		} else {
@@ -213,7 +213,7 @@ func Serve() {
 				return
 			}
 			// try to get the hash only
-			hash := strings.Replace(id, baseURL+actor.name+"/", "", 1)
+			hash := strings.Replace(id, baseURL+actor.name+"/item/", "", 1)
 			// if there are still slashes in the result this means the
 			// above didn't work
 			if strings.ContainsAny(hash, "/") {
@@ -233,6 +233,17 @@ func Serve() {
 				return
 			}
 			actor.following[acceptor] = hash
+			actor.save()
+		case "Reject":
+			rejector := activity["actor"].(string)
+			actor, err := LoadActor(mux.Vars(r)["actor"]) // load the actor from disk
+			if err != nil {
+				log.Error("No such actor")
+				return
+			}
+			// write the actor to the list of rejected follows so that
+			// we won't try following them again
+			actor.rejected[rejector] = ""
 			actor.save()
 		default:
 
@@ -282,7 +293,7 @@ func Serve() {
 			return
 		}
 		postJSON, err := json.Marshal(post)
-		if err!= nil{
+		if err != nil {
 			log.Info("failed to marshal json from item " + hash + " text")
 			return
 		}

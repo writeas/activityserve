@@ -52,3 +52,5 @@
     [ ] Leave them as is?
 [✔] Handle followers and following uri's
 [ ] Do I care about the inbox?
+[ ] Expose configuration to apps
+[ ] Do not boost replies (configurable)

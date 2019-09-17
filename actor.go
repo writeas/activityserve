@@ -198,6 +198,41 @@ func LoadActor(name string) (Actor, error) {
 		publicKeyID:   baseURL + name + "#main-key",
 	}
 
+	actor.OnFollow = func(activity map[string]interface{}) { actor.Accept(activity) }
+
+	return actor, nil
+}
+
+// GetActor attempts to LoadActor and if it doesn't exist
+// creates one
+func GetActor(name, summary, actorType string) (Actor, error) {
+	actor, err := LoadActor(name)
+
+	if err != nil {
+		log.Info("Actor doesn't exist, creating...")
+		actor, err = MakeActor(name, summary, actorType)
+		if err != nil {
+			log.Info("Can't create actor!")
+			return Actor{}, err
+		}
+	}
+
+	// if the info provided for the actor is different
+	// from what the actor has, edit the actor
+	save := false
+	if summary != actor.summary {
+		actor.summary = summary
+		save = true
+	}
+	if actorType != actor.actorType {
+		actor.actorType = actorType
+		save = true
+	}
+	// if anything changed write it to disk
+	if save {
+		actor.save()
+	}
+
 	return actor, nil
 }
 
@@ -262,9 +297,14 @@ func (a *Actor) whoAmI() string {
 	}`
 }
 
-func (a *Actor) newID() (hash string, url string) {
+func (a *Actor) newItemID() (hash string, url string) {
 	hash = uniuri.New()
 	return hash, baseURL + a.name + "/item/" + hash
+}
+
+func (a *Actor) newID() (hash string, url string) {
+	hash = uniuri.New()
+	return hash, baseURL + a.name + "/" + hash
 }
 
 // TODO Reply(content string, inReplyTo string)
@@ -280,7 +320,7 @@ func (a *Actor) newID() (hash string, url string) {
 //
 func (a *Actor) CreateNote(content, inReplyTo string) {
 	// for now I will just write this to the outbox
-	hash, id := a.newID()
+	hash, id := a.newItemID()
 	create := make(map[string]interface{})
 	note := make(map[string]interface{})
 	create["@context"] = context()
@@ -555,7 +595,7 @@ func (a *Actor) Follow(user string) (err error) {
 	}
 
 	follow := make(map[string]interface{})
-	_, id := a.newID()
+	hash, id := a.newItemID()
 
 	follow["@context"] = context()
 	follow["actor"] = a.iri
@@ -575,7 +615,7 @@ func (a *Actor) Follow(user string) (err error) {
 					return
 				}
 				// save the activity
-				a.saveItem(id, follow)
+				a.saveItem(hash, follow)
 				// we are going to save only on accept so look at
 				// the http handler for the accept code
 			}()
@@ -591,7 +631,7 @@ func (a *Actor) Follow(user string) (err error) {
 // id to the id of the original Follow activity that
 // was accepted when initially following that user
 // (this is read from the `actor.following` map
-func (a *Actor) Unfollow(user string){
+func (a *Actor) Unfollow(user string) {
 	log.Info("Unfollowing " + user)
 
 	// create an undo activiy
@@ -606,7 +646,7 @@ func (a *Actor) Unfollow(user string){
 
 	follow["@context"] = context()
 	follow["actor"] = a.iri
-	follow["id"] = baseURL + "/item/" + hash 
+	follow["id"] = baseURL + "/item/" + hash
 	follow["object"] = user
 	follow["type"] = "Follow"
 
@@ -642,7 +682,7 @@ func (a *Actor) Unfollow(user string){
 func (a *Actor) Announce(url string) {
 	// our announcements are public. Public stuff have a "To" to the url below
 	toURL := "https://www.w3.org/ns/activitystreams#Public"
-	id, hash := a.newID()
+	id, hash := a.newItemID()
 
 	announce := make(map[string]interface{})
 
