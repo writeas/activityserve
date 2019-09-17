@@ -682,14 +682,15 @@ func (a *Actor) Unfollow(user string) {
 func (a *Actor) Announce(url string) {
 	// our announcements are public. Public stuff have a "To" to the url below
 	toURL := "https://www.w3.org/ns/activitystreams#Public"
-	id, hash := a.newItemID()
+	hash, id := a.newItemID()
 
 	announce := make(map[string]interface{})
 
 	announce["@context"] = context()
 	announce["id"] = id
+	announce["type"] = "Announce"
 	announce["object"] = url
-	announce["actor"] = a.name
+	announce["actor"] = a.iri
 	announce["to"] = toURL
 
 	// cc this to all our followers one by one
