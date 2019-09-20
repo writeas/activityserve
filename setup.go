@@ -21,7 +21,7 @@ const version = "0.99"
 var client = http.Client{}
 
 // Setup sets our environment up
-func Setup(configurationFile string, debug bool) {
+func Setup(configurationFile string, debug bool) *ini.File {
 	// read configuration file (config.ini)
 
 	if configurationFile == "" {
@@ -70,6 +70,8 @@ func Setup(configurationFile string, debug bool) {
 		log.EnableLevel("info")
 		printer.EnableLevel("info")
 	}
+
+	return cfg
 }
 
 // SetupStorage creates storage

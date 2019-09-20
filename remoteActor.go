@@ -85,6 +85,7 @@ func get(iri string) (info map[string]interface{}, err error) {
 	if err != nil {
 		log.Info("something went wrong when unmarshalling the json")
 		log.Info(err)
+		return
 	}
 	info = e.(map[string]interface{})
 

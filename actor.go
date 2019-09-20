@@ -30,10 +30,11 @@ import (
 // Actor represents a local actor we can act on
 // behalf of.
 type Actor struct {
-	name, summary, actorType, iri  string
+	Name, summary, actorType, iri  string
 	followersIRI                   string
 	nuIri                          *url.URL
 	followers, following, rejected map[string]interface{}
+	requested                      map[string]interface{}
 	posts                          map[int]map[string]interface{}
 	publicKey                      crypto.PublicKey
 	privateKey                     crypto.PrivateKey
@@ -41,6 +42,7 @@ type Actor struct {
 	privateKeyPem                  string
 	publicKeyID                    string
 	OnFollow                       func(map[string]interface{})
+	OnReceiveContent               func(map[string]interface{})
 }
 
 // ActorToSave is a stripped down actor representation
@@ -49,7 +51,7 @@ type Actor struct {
 // see https://stackoverflow.com/questions/26327391/json-marshalstruct-returns
 type ActorToSave struct {
 	Name, Summary, ActorType, IRI, PublicKey, PrivateKey string
-	Followers, Following, Rejected                       map[string]interface{}
+	Followers, Following, Rejected, Requested            map[string]interface{}
 }
 
 // MakeActor returns a new local actor we can act
@@ -58,6 +60,7 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 	followers := make(map[string]interface{})
 	following := make(map[string]interface{})
 	rejected := make(map[string]interface{})
+	requested := make(map[string]interface{})
 	followersIRI := baseURL + name + "/followers"
 	publicKeyID := baseURL + name + "#main-key"
 	iri := baseURL + name
@@ -67,7 +70,7 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 		return Actor{}, err
 	}
 	actor := Actor{
-		name:         name,
+		Name:         name,
 		summary:      summary,
 		actorType:    actorType,
 		iri:          iri,
@@ -75,12 +78,14 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 		followers:    followers,
 		following:    following,
 		rejected:     rejected,
+		requested:    requested,
 		followersIRI: followersIRI,
 		publicKeyID:  publicKeyID,
 	}
 
 	// set auto accept by default (this could be a configuration value)
 	actor.OnFollow = func(activity map[string]interface{}) { actor.Accept(activity) }
+	actor.OnReceiveContent = func(activity map[string]interface{}) {}
 
 	// create actor's keypair
 	rng := rand.Reader
@@ -138,6 +143,7 @@ func LoadActor(name string) (Actor, error) {
 	jsonFile := storage + slash + "actors" + slash + name + slash + name + ".json"
 	fileHandle, err := os.Open(jsonFile)
 	if os.IsNotExist(err) {
+		log.Info(name)
 		log.Info("We don't have this kind of actor stored")
 		return Actor{}, err
 	}
@@ -182,7 +188,7 @@ func LoadActor(name string) (Actor, error) {
 	}
 
 	actor := Actor{
-		name:          name,
+		Name:          name,
 		summary:       jsonData["Summary"].(string),
 		actorType:     jsonData["ActorType"].(string),
 		iri:           jsonData["IRI"].(string),
@@ -190,6 +196,7 @@ func LoadActor(name string) (Actor, error) {
 		followers:     jsonData["Followers"].(map[string]interface{}),
 		following:     jsonData["Following"].(map[string]interface{}),
 		rejected:      jsonData["Rejected"].(map[string]interface{}),
+		requested:     jsonData["Requested"].(map[string]interface{}),
 		publicKey:     publicKey,
 		privateKey:    privateKey,
 		publicKeyPem:  jsonData["PublicKey"].(string),
@@ -199,6 +206,7 @@ func LoadActor(name string) (Actor, error) {
 	}
 
 	actor.OnFollow = func(activity map[string]interface{}) { actor.Accept(activity) }
+	actor.OnReceiveContent = func(activity map[string]interface{}) {}
 
 	return actor, nil
 }
@@ -245,19 +253,20 @@ func (a *Actor) save() error {
 
 	// check if we already have a directory to save actors
 	// and if not, create it
-	dir := storage + slash + "actors" + slash + a.name + slash + "items"
+	dir := storage + slash + "actors" + slash + a.Name + slash + "items"
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		os.MkdirAll(dir, 0755)
 	}
 
 	actorToSave := ActorToSave{
-		Name:       a.name,
+		Name:       a.Name,
 		Summary:    a.summary,
 		ActorType:  a.actorType,
 		IRI:        a.iri,
 		Followers:  a.followers,
 		Following:  a.following,
 		Rejected:   a.rejected,
+		Requested:  a.requested,
 		PublicKey:  a.publicKeyPem,
 		PrivateKey: a.privateKeyPem,
 	}
@@ -269,7 +278,7 @@ func (a *Actor) save() error {
 	}
 	// log.Info(actorToSave)
 	// log.Info(string(actorJSON))
-	err = ioutil.WriteFile(storage+slash+"actors"+slash+a.name+slash+a.name+".json", actorJSON, 0644)
+	err = ioutil.WriteFile(storage+slash+"actors"+slash+a.Name+slash+a.Name+".json", actorJSON, 0644)
 	if err != nil {
 		log.Printf("WriteFileJson ERROR: %+v", err)
 		return err
@@ -279,19 +288,19 @@ func (a *Actor) save() error {
 }
 
 func (a *Actor) whoAmI() string {
-	return `{"@context":	"https://www.w3.org/ns/activitystreams",
+	return `{"@context":["https://www.w3.org/ns/activitystreams"],
 	"type": "` + a.actorType + `",
-	"id": "` + baseURL + a.name + `",
-	"name": "` + a.name + `",
-	"preferredUsername": "` + a.name + `",
+	"id": "` + baseURL + a.Name + `",
+	"name": "` + a.Name + `",
+	"preferredUsername": "` + a.Name + `",
 	"summary": "` + a.summary + `",
-	"inbox": "` + baseURL + a.name + `/inbox",
-	"outbox": "` + baseURL + a.name + `/outbox",
-	"followers": "` + baseURL + a.name + `/peers/followers",
-	"following": "` + baseURL + a.name + `/peers/following",
+	"inbox": "` + baseURL + a.Name + `/inbox",
+	"outbox": "` + baseURL + a.Name + `/outbox",
+	"followers": "` + baseURL + a.Name + `/peers/followers",
+	"following": "` + baseURL + a.Name + `/peers/following",
 	"publicKey": {
-		"id": "` + baseURL + a.name + `#main-key",
-		"owner": "` + baseURL + a.name + `",
+		"id": "` + baseURL + a.Name + `#main-key",
+		"owner": "` + baseURL + a.Name + `",
 		"publicKeyPem": "` + strings.ReplaceAll(a.publicKeyPem, "\n", "\\n") + `"
 	  }
 	}`
@@ -299,12 +308,12 @@ func (a *Actor) whoAmI() string {
 
 func (a *Actor) newItemID() (hash string, url string) {
 	hash = uniuri.New()
-	return hash, baseURL + a.name + "/item/" + hash
+	return hash, baseURL + a.Name + "/item/" + hash
 }
 
 func (a *Actor) newID() (hash string, url string) {
 	hash = uniuri.New()
-	return hash, baseURL + a.name + "/" + hash
+	return hash, baseURL + a.Name + "/" + hash
 }
 
 // TODO Reply(content string, inReplyTo string)
@@ -324,11 +333,11 @@ func (a *Actor) CreateNote(content, inReplyTo string) {
 	create := make(map[string]interface{})
 	note := make(map[string]interface{})
 	create["@context"] = context()
-	create["actor"] = baseURL + a.name
+	create["actor"] = baseURL + a.Name
 	create["cc"] = a.followersIRI
 	create["id"] = id
 	create["object"] = note
-	note["attributedTo"] = baseURL + a.name
+	note["attributedTo"] = baseURL + a.Name
 	note["cc"] = a.followersIRI
 	note["content"] = content
 	if inReplyTo != "" {
@@ -357,7 +366,7 @@ func (a *Actor) CreateNote(content, inReplyTo string) {
 func (a *Actor) saveItem(hash string, content map[string]interface{}) error {
 	JSON, _ := json.MarshalIndent(content, "", "\t")
 
-	dir := storage + slash + "actors" + slash + a.name + slash + "items"
+	dir := storage + slash + "actors" + slash + a.Name + slash + "items"
 	err := ioutil.WriteFile(dir+slash+hash+".json", JSON, 0644)
 	if err != nil {
 		log.Printf("WriteFileJson ERROR: %+v", err)
@@ -367,7 +376,7 @@ func (a *Actor) saveItem(hash string, content map[string]interface{}) error {
 }
 
 func (a *Actor) loadItem(hash string) (item map[string]interface{}, err error) {
-	dir := storage + slash + "actors" + slash + a.name + slash + "items"
+	dir := storage + slash + "actors" + slash + a.Name + slash + "items"
 	jsonFile := dir + slash + hash + ".json"
 	fileHandle, err := os.Open(jsonFile)
 	if os.IsNotExist(err) {
@@ -405,20 +414,20 @@ func (a *Actor) getPeers(page int, who string) (response []byte, err error) {
 		return nil, errors.New("cannot find collection" + who)
 	}
 	themap := make(map[string]interface{})
-	themap["@context"] = "https://www.w3.org/ns/activitystreams"
+	themap["@context"] = context()
 	if page == 0 {
-		themap["first"] = baseURL + a.name + "/" + who + "?page=1"
-		themap["id"] = baseURL + a.name + "/" + who
+		themap["first"] = baseURL + a.Name + "/peers/" + who + "?page=1"
+		themap["id"] = baseURL + a.Name + "/peers/" + who
 		themap["totalItems"] = strconv.Itoa(len(collection))
 		themap["type"] = "OrderedCollection"
 	} else if page == 1 { // implement pagination
-		themap["id"] = baseURL + a.name + who + "?page=" + strconv.Itoa(page)
+		themap["id"] = baseURL + a.Name + who + "?page=" + strconv.Itoa(page)
 		items := make([]string, 0, len(collection))
 		for k := range collection {
 			items = append(items, k)
 		}
 		themap["orderedItems"] = items
-		themap["partOf"] = baseURL + a.name + "/" + who
+		themap["partOf"] = baseURL + a.Name + "/peers/" + who
 		themap["totalItems"] = len(collection)
 		themap["type"] = "OrderedCollectionPage"
 	}
@@ -465,7 +474,8 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 	req.Header.Add("Date", time.Now().UTC().Format("Mon, 02 Jan 2006 15:04:05")+" GMT")
 	req.Header.Add("User-Agent", userAgent+" "+version)
 	req.Header.Add("Host", iri.Host)
-	req.Header.Add("Accept", "application/activity+json")
+	req.Header.Add("Accept", "application/activity+json; charset=utf-8")
+	req.Header.Add("Content-Type", "application/activity+json; charset=utf-8")
 	sum := sha256.Sum256(b)
 	req.Header.Add("Digest",
 		fmt.Sprintf("SHA-256=%s",
@@ -550,7 +560,7 @@ func (a *Actor) appendToOutbox(iri string) (err error) {
 	// create outbox file if it doesn't exist
 	var outbox *os.File
 
-	outboxFilePath := storage + slash + "actors" + slash + a.name + slash + "outbox.txt"
+	outboxFilePath := storage + slash + "actors" + slash + a.Name + slash + "outbox.txt"
 	outbox, err = os.OpenFile(outboxFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Info("Cannot create or open outbox file")
@@ -616,7 +626,10 @@ func (a *Actor) Follow(user string) (err error) {
 				}
 				// save the activity
 				a.saveItem(hash, follow)
-				// we are going to save only on accept so look at
+				a.requested[user] = hash
+				a.save()
+				// we are going to save the request here
+				// and save the follow only on accept so look at
 				// the http handler for the accept code
 			}()
 		}
@@ -759,4 +772,22 @@ func (a *Actor) Accept(follow map[string]interface{}) {
 	// Maybe we need to save this accept?
 	go a.signedHTTPPost(accept, follower.inbox)
 
+}
+
+// Followers returns the list of followers
+func (a *Actor) Followers() map[string]string {
+	f := make(map[string]string)
+	for follower, inbox := range a.followers {
+		f[follower] = inbox.(string)
+	}
+	return f
+}
+
+// Following returns the list of followers
+func (a *Actor) Following() map[string]string {
+	f := make(map[string]string)
+	for followee, hash := range a.following {
+		f[followee] = hash.(string)
+	}
+	return f
 }

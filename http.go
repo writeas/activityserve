@@ -14,7 +14,7 @@ import (
 )
 
 // Serve starts an http server with all the required handlers
-func Serve() {
+func Serve(actors map[string]Actor) {
 
 	var webfingerHandler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "application/jrd+json; charset=utf-8")
@@ -35,13 +35,13 @@ func Serve() {
 
 		responseMap := make(map[string]interface{})
 
-		responseMap["subject"] = "acct:" + actor.name + "@" + server
+		responseMap["subject"] = "acct:" + actor.Name + "@" + server
 		// links is a json array with a single element
 		var links [1]map[string]string
 		link1 := make(map[string]string)
 		link1["rel"] = "self"
 		link1["type"] = "application/activity+json"
-		link1["href"] = baseURL + actor.name
+		link1["href"] = baseURL + actor.Name
 		links[0] = link1
 		responseMap["links"] = links
 
@@ -93,7 +93,7 @@ func Serve() {
 		}
 		postsPerPage := 100
 		var response []byte
-		filename := storage + slash + "actors" + slash + actor.name + slash + "outbox.txt"
+		filename := storage + slash + "actors" + slash + actor.Name + slash + "outbox.txt"
 		totalLines, err := lineCounter(filename)
 		if err != nil {
 			log.Info("Can't read outbox.txt")
@@ -104,9 +104,9 @@ func Serve() {
 			//TODO fix total items
 			response = []byte(`{
 				"@context" : "https://www.w3.org/ns/activitystreams",
-				"first" : "` + baseURL + actor.name + `/outbox?page=1",
-				"id" : "` + baseURL + actor.name + `/outbox",
-				"last" : "` + baseURL + actor.name + `/outbox?page=` + strconv.Itoa(totalLines/postsPerPage+1) + `",
+				"first" : "` + baseURL + actor.Name + `/outbox?page=1",
+				"id" : "` + baseURL + actor.Name + `/outbox",
+				"last" : "` + baseURL + actor.Name + `/outbox?page=` + strconv.Itoa(totalLines/postsPerPage+1) + `",
 				"totalItems" : ` + strconv.Itoa(totalLines) + `, 
 				"type" : "OrderedCollection"
 			 }`)
@@ -124,15 +124,15 @@ func Serve() {
 			}
 			responseMap := make(map[string]interface{})
 			responseMap["@context"] = context()
-			responseMap["id"] = baseURL + actor.name + "/outbox?page=" + pageStr
+			responseMap["id"] = baseURL + actor.Name + "/outbox?page=" + pageStr
 
 			if page*postsPerPage < totalLines {
-				responseMap["next"] = baseURL + actor.name + "/outbox?page=" + strconv.Itoa(page+1)
+				responseMap["next"] = baseURL + actor.Name + "/outbox?page=" + strconv.Itoa(page+1)
 			}
 			if page > 1 {
-				responseMap["prev"] = baseURL + actor.name + "/outbox?page=" + strconv.Itoa(page-1)
+				responseMap["prev"] = baseURL + actor.Name + "/outbox?page=" + strconv.Itoa(page-1)
 			}
-			responseMap["partOf"] = baseURL + actor.name + "/outbox"
+			responseMap["partOf"] = baseURL + actor.Name + "/outbox"
 			responseMap["type"] = "OrderedCollectionPage"
 
 			orderedItems := make([]interface{}, 0, postsPerPage)
@@ -144,7 +144,7 @@ func Serve() {
 				// keep the hash
 				hash := parts[len(parts)-1]
 				// build the filename
-				filename := storage + slash + "actors" + slash + actor.name + slash + "items" + slash + hash + ".json"
+				filename := storage + slash + "actors" + slash + actor.Name + slash + "items" + slash + hash + ".json"
 				// open the file
 				activityJSON, err := ioutil.ReadFile(filename)
 				if err != nil {
@@ -208,31 +208,44 @@ func Serve() {
 			id := follow["id"].(string)
 
 			// check if the object of the follow is us
-			if follow["actor"].(string) != baseURL+actor.name {
+			if follow["actor"].(string) != baseURL+actor.Name {
 				log.Info("This is not for us, ignoring")
 				return
 			}
 			// try to get the hash only
-			hash := strings.Replace(id, baseURL+actor.name+"/item/", "", 1)
+			hash := strings.Replace(id, baseURL+actor.Name+"/item/", "", 1)
 			// if there are still slashes in the result this means the
 			// above didn't work
 			if strings.ContainsAny(hash, "/") {
+				// log.Info(follow)
 				log.Info("The id of this follow is probably wrong")
-				return
+				// we could return here but pixelfed returns
+				// the id as http://domain.tld/actor instead of
+				// http://domain.tld/actor/item/hash so this chokes
+				// return
 			}
 
 			// Have we already requested this follow or are we following anybody that
 			// sprays accepts?
-			savedFollowRequest, err := actor.loadItem(hash)
-			if err != nil {
+
+			// pixelfed doesn't return the original follow thus the id is wrong so we
+			// need to just check if we requested this actor
+
+			// pixelfed doesn't return the original follow thus the id is wrong so we
+			// need to just check if we requested this actor
+			if _, ok := actor.requested[acceptor]; !ok {
 				log.Info("We never requested this follow, ignoring the Accept")
 				return
 			}
-			if savedFollowRequest["id"] != id {
-				log.Info("Id mismatch between Follow request and Accept")
-				return
-			}
+			// if pixelfed fixes https://github.com/pixelfed/pixelfed/issues/1710 we should uncomment
+			// hash is the _ from above
+
+			// if hash != id {
+			// 	log.Info("Id mismatch between Follow request and Accept")
+			// 	return
+			// }
 			actor.following[acceptor] = hash
+			delete(actor.requested, acceptor)
 			actor.save()
 		case "Reject":
 			rejector := activity["actor"].(string)
@@ -245,6 +258,13 @@ func Serve() {
 			// we won't try following them again
 			actor.rejected[rejector] = ""
 			actor.save()
+		case "Create":
+			actor, ok := actors[mux.Vars(r)["actor"]] // load the actor from memory
+			if !ok {
+				log.Error("No such actor")
+				return
+			}
+			actor.OnReceiveContent(activity)
 		default:
 
 		}
