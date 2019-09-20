@@ -13,6 +13,12 @@ import (
 	"encoding/json"
 )
 
+// ServeSingleActor just simplifies the call from main so
+// that onboarding is as easy as possible
+func ServeSingleActor(actor Actor) {
+	Serve(map[string]Actor{actor.Name: actor})
+}
+
 // Serve starts an http server with all the required handlers
 func Serve(actors map[string]Actor) {
 
@@ -261,7 +267,8 @@ func Serve(actors map[string]Actor) {
 		case "Create":
 			actor, ok := actors[mux.Vars(r)["actor"]] // load the actor from memory
 			if !ok {
-				log.Error("No such actor")
+				// log.Error(actors)
+				log.Error("No such actor: " + mux.Vars(r)["actor"])
 				return
 			}
 			actor.OnReceiveContent(activity)
