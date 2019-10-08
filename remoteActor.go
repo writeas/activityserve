@@ -91,3 +91,8 @@ func get(iri string) (info map[string]interface{}, err error) {
 
 	return
 }
+
+// GetInbox returns the inbox url of the actor
+func (ra RemoteActor) GetInbox() string {
+	return ra.inbox
+}
