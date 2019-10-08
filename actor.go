@@ -54,8 +54,8 @@ type ActorToSave struct {
 	Followers, Following, Rejected, Requested            map[string]interface{}
 }
 
-// MakeActor returns a new local actor we can act
-// on behalf of
+// MakeActor creates and returns a new local actor we can act
+// on behalf of. It also creates its files on disk
 func MakeActor(name, summary, actorType string) (Actor, error) {
 	followers := make(map[string]interface{})
 	following := make(map[string]interface{})
@@ -125,7 +125,7 @@ func MakeActor(name, summary, actorType string) (Actor, error) {
 	return actor, nil
 }
 
-// GetOutboxIRI returns the outbox iri in net/url
+// GetOutboxIRI returns the outbox iri in net/url format
 func (a *Actor) GetOutboxIRI() *url.URL {
 	iri := a.iri + "/outbox"
 	nuiri, _ := url.Parse(iri)
@@ -133,7 +133,8 @@ func (a *Actor) GetOutboxIRI() *url.URL {
 }
 
 // LoadActor searches the filesystem and creates an Actor
-// from the data in name.json
+// from the data in <name>.json
+// This does not preserve events so use with caution
 func LoadActor(name string) (Actor, error) {
 	// make sure our users can't read our hard drive
 	if strings.ContainsAny(name, "./ ") {
@@ -160,9 +161,6 @@ func LoadActor(name string) (Actor, error) {
 		log.Info("Something went wrong when parsing the local actor uri into net/url")
 		return Actor{}, err
 	}
-
-	// publicKeyNewLines := strings.ReplaceAll(jsonData["PublicKey"].(string), "\\n", "\n")
-	// privateKeyNewLines := strings.ReplaceAll(jsonData["PrivateKey"].(string), "\\n", "\n")
 
 	publicKeyDecoded, rest := pem.Decode([]byte(jsonData["PublicKey"].(string)))
 	if publicKeyDecoded == nil {
@@ -245,7 +243,7 @@ func GetActor(name, summary, actorType string) (Actor, error) {
 }
 
 // func LoadActorFromIRI(iri string) a Actor{
-
+// TODO, this should parse the iri and load the right actor
 // }
 
 // save the actor to file
@@ -445,6 +443,9 @@ func (a *Actor) GetFollowing(page int) (response []byte, err error) {
 	return a.getPeers(page, "following")
 }
 
+// signedHTTPPost performs an HTTP post on behalf of Actor with the
+// request-target, date, host and digest headers signed
+// with the actor's private key.
 func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err error) {
 	b, err := json.Marshal(content)
 	if err != nil {
@@ -498,7 +499,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 		return
 	}
 	responseData, _ := ioutil.ReadAll(resp.Body)
-	fmt.Printf("POST request to %s succeeded (%d): %s \nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, FormatJSON(responseData), FormatJSON(byteCopy), FormatHeaders(req.Header))
+	log.Errorf("POST request to %s succeeded (%d): %s \nResponse: %s \nRequest: %s \nHeaders: %s", to, resp.StatusCode, resp.Status, FormatJSON(responseData), FormatJSON(byteCopy), FormatHeaders(req.Header))
 	return
 }
 
@@ -556,6 +557,8 @@ func (a *Actor) NewFollower(iri string, inbox string) error {
 	return a.save()
 }
 
+// appendToOutbox adds a new line with the id of the activity
+// to outbox.txt
 func (a *Actor) appendToOutbox(iri string) (err error) {
 	// create outbox file if it doesn't exist
 	var outbox *os.File
@@ -574,6 +577,7 @@ func (a *Actor) appendToOutbox(iri string) (err error) {
 	return nil
 }
 
+// batchSend sends a batch of http posts to a list of recipients
 func (a *Actor) batchSend(activity map[string]interface{}, recipients []string) (err error) {
 	for _, v := range recipients {
 		err := a.signedHTTPPost(activity, v)
@@ -584,6 +588,7 @@ func (a *Actor) batchSend(activity map[string]interface{}, recipients []string) 
 	return
 }
 
+// send to followers sends a batch of http posts to each one of the followers
 func (a *Actor) sendToFollowers(activity map[string]interface{}) (err error) {
 	recipients := make([]string, len(a.followers))
 
@@ -645,15 +650,34 @@ func (a *Actor) Follow(user string) (err error) {
 // was accepted when initially following that user
 // (this is read from the `actor.following` map
 func (a *Actor) Unfollow(user string) {
+	// if we have a request to follow this user cancel it
+	cancelRequest := false
+	if _, ok := a.requested[user]; ok {
+		log.Info("Cancelling follow request")
+		cancelRequest = true
+		// then continue to send the unfollow to the receipient
+		// to inform them that the request is cancelled.
+	} else if _, ok := a.following[user]; !ok {
+		log.Info("We are not following this user, ignoring...")
+		return
+	}
+
 	log.Info("Unfollowing " + user)
+
+	var hash string
+	// find the id of the original follow
+	if cancelRequest {
+		hash = a.requested[user].(string)
+	} else {
+		hash = a.following[user].(string)
+	}
 
 	// create an undo activiy
 	undo := make(map[string]interface{})
 	undo["@context"] = context()
 	undo["actor"] = a.iri
-
-	// find the id of the original follow
-	hash := a.following[user].(string)
+	undo["id"] = baseURL + "/item/" + hash + "/undo"
+	undo["type"] = "Undo"
 
 	follow := make(map[string]interface{})
 
@@ -673,22 +697,23 @@ func (a *Actor) Unfollow(user string) {
 		return
 	}
 
-	// only if we're already following them
-	if _, ok := a.following[user]; ok {
-		PrettyPrint(undo)
-		go func() {
-			err := a.signedHTTPPost(undo, remoteUser.inbox)
-			if err != nil {
-				log.Info("Couldn't unfollow " + user)
-				log.Info(err)
-				return
-			}
-			// if there was no error then delete the follow
-			// from the list
+	PrettyPrint(undo)
+	go func() {
+		err := a.signedHTTPPost(undo, remoteUser.inbox)
+		if err != nil {
+			log.Info("Couldn't unfollow " + user)
+			log.Info(err)
+			return
+		}
+		// if there was no error then delete the follow
+		// from the list
+		if cancelRequest {
+			delete(a.requested, user)
+		} else {
 			delete(a.following, user)
-			a.save()
-		}()
-	}
+		}
+		a.save()
+	}()
 }
 
 // Announce this activity to our followers

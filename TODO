@@ -13,7 +13,7 @@
         [✔] Handle being followed
         [✔] When followed, the handler should write the new follower to file
         [✔] Make sure we send our boosts to all our followers
-[ ] Write incoming activities to disk (do we have to?)        
+[x] Write incoming activities to disk (do we have to?)        
 [✔] Write all the announcements (boosts) to the database to 
     their correct actors
 [✔] Check if we are already following users
@@ -22,12 +22,13 @@
 [✔] Make OS-independent (mosty directory separators)
 [✔] Create outbox.json programmatically
 [✔] Make storage configurable (search for "storage" in project)
-[ ] Check if we're boosting only stuff from actors we follow, not whatever comes
+[✔] Check if we're boosting only stuff from actors we follow, not whatever comes
     through in our inbox
 [✔] Boost not only articles but other things too
 [✔] Sanitize input, never allow slashes or dots
 [✔] Add summary to actors.json
-[ ] Check local actor names for characters illegal for filenames and ban them
+[✔] Check local actor names for characters illegal for filenames and ban them
+    (Done in pherephone, not activityserve)
 [✔] Create debug flag
 [✔] Write to following only upon accept
     (waiting to actually get an accept so that I can test this)
@@ -41,16 +42,16 @@
 [ ] Implement nodeinfo and statistics
 [✔] Accept even if already follows us
 [✔] Handle paging
-[ ] Test paging
+[✔] Test paging
 [✔] Handle http signatures
 [ ] Verify http signatures
-[ ] Refactor, comment and clean up
-[ ] Split to pherephone and activityServe
+[✔] Refactor, comment and clean up
+[✔] Split to pherephone and activityServe
 [ ] Decide what's to be done with actors removed from `actors.json`.
     [ ] Remove them?
     [ ] Leave them read-only?
-    [ ] Leave them as is?
+    [✔] Leave them as is?
 [✔] Handle followers and following uri's
 [ ] Do I care about the inbox?
-[ ] Expose configuration to apps
-[ ] Do not boost replies (configurable)
+[✔] Expose configuration to apps
+[✔] Do not boost replies (configurable)

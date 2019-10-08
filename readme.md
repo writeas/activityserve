@@ -2,7 +2,7 @@
 
 ## A very light ActivityPub library in go
 
-This library was built to support the very little functions that [pherephone](https://github.com/writeas/pherephone) requires. It might never be feature-complete but it's a very good point to start your activityPub journey. Take a look at [activityserve-example] for a simple main file that uses **activityserve** to post a "Hello, world" message.
+This library was built to support the very little functions that [pherephone](https://github.com/writeas/pherephone) requires. It might never be feature-complete but it's a very good point to start your activityPub journey. Take a look at [activityserve-example](https://github.com/writeas/activityserve-example) for a simple main file that uses **activityserve** to post a "Hello, world" message.
 
 For now it supports following and unfollowing users, accepting follows, announcing (boosting) other posts and this is pretty much it. 
 

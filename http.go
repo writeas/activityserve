@@ -251,6 +251,7 @@ func Serve(actors map[string]Actor) {
 			// 	return
 			// }
 			actor.following[acceptor] = hash
+			PrettyPrint(activity)
 			delete(actor.requested, acceptor)
 			actor.save()
 		case "Reject":
