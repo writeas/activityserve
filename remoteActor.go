@@ -3,17 +3,9 @@ package activityserve
 import (
 	"fmt"
 	"io/ioutil"
-
 	"github.com/gologme/log"
-
-	// "github.com/go-fed/activity/pub"
-	// "github.com/go-fed/httpsig"
-
 	"net/http"
-	// "net/url"
-
 	"encoding/json"
-
 	"bytes"
 )
 
