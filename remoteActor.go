@@ -1,13 +1,20 @@
 package activityserve
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 
 	"github.com/gologme/log"
+
+	// "github.com/go-fed/activity/pub"
+	// "github.com/go-fed/httpsig"
+
+	"net/http"
+	// "net/url"
+
+	"encoding/json"
+
+	"bytes"
 )
 
 // RemoteActor is a type that holds an actor
@@ -31,8 +38,12 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 
 	outbox := info["outbox"].(string)
 	inbox := info["inbox"].(string)
-	endpoints := info["endpoints"].(map[string]interface{})
-	sharedInbox := endpoints["sharedInbox"].(string)
+	var endpoints map[string]interface{}
+	var sharedInbox string
+	if info["endpoints"] != nil {
+		endpoints = info["endpoints"].(map[string]interface{})
+		sharedInbox = endpoints["sharedInbox"].(string)
+	}
 
 	return RemoteActor{
 		iri:         iri,
@@ -95,5 +106,8 @@ func (ra RemoteActor) GetInbox() string {
 
 // GetSharedInbox returns the inbox url of the actor
 func (ra RemoteActor) GetSharedInbox() string {
+	if ra.sharedInbox == "" {
+		return ra.inbox
+	}
 	return ra.sharedInbox
 }
