@@ -34,7 +34,9 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 	var sharedInbox string
 	if info["endpoints"] != nil {
 		endpoints = info["endpoints"].(map[string]interface{})
-		sharedInbox = endpoints["sharedInbox"].(string)
+		if val, ok := endpoints["sharedInbox"]; ok {
+			sharedInbox = val.(string)
+		} 
 	}
 
 	return RemoteActor{
