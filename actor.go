@@ -719,7 +719,7 @@ func (a *Actor) Unfollow(user string) {
 // Announce this activity to our followers
 func (a *Actor) Announce(url string) {
 	// our announcements are public. Public stuff have a "To" to the url below
-	toURL := "https://www.w3.org/ns/activitystreams#Public"
+	toURL := []string{"https://www.w3.org/ns/activitystreams#Public"}
 	hash, id := a.newItemID()
 
 	announce := make(map[string]interface{})
@@ -748,7 +748,8 @@ func (a *Actor) Announce(url string) {
 }
 
 func (a *Actor) followersSlice() []string {
-	followersSlice := make([]string, len(a.followers))
+	followersSlice := make([]string, 0)
+	followersSlice = append(followersSlice, a.followersIRI)
 	for k := range a.followers {
 		followersSlice = append(followersSlice, k)
 	}
@@ -784,7 +785,7 @@ func (a *Actor) Accept(follow map[string]interface{}) {
 
 	accept["@context"] = "https://www.w3.org/ns/activitystreams"
 	accept["to"] = follow["actor"]
-	accept["id"], _ = a.newID()
+	_, accept["id"] = a.newID()
 	accept["actor"] = a.iri
 	accept["object"] = follow
 	accept["type"] = "Accept"
