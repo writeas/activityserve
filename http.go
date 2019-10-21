@@ -272,6 +272,8 @@ func Serve(actors map[string]Actor) {
 				log.Error("No such actor: " + mux.Vars(r)["actor"])
 				return
 			}
+			log.Info("Received the following activity from: " + r.UserAgent())
+			PrettyPrintJSON(b)
 			actor.OnReceiveContent(activity)
 		default:
 
