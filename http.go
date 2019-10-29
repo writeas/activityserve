@@ -9,6 +9,7 @@ import (
 
 	"github.com/gologme/log"
 	"github.com/gorilla/mux"
+	"github.com/writefreely/go-nodeinfo"
 
 	"encoding/json"
 )
@@ -332,6 +333,10 @@ func Serve(actors map[string]Actor) {
 
 	// Add the handlers to a HTTP server
 	gorilla := mux.NewRouter()
+	niCfg := nodeInfoConfig(baseURL)
+	ni := nodeinfo.NewService(*niCfg, nodeInfoResolver{len(actors)})
+	gorilla.HandleFunc(nodeinfo.NodeInfoPath, http.HandlerFunc(ni.NodeInfoDiscover))
+	gorilla.HandleFunc(niCfg.InfoURL, http.HandlerFunc(ni.NodeInfo))
 	gorilla.HandleFunc("/.well-known/webfinger", webfingerHandler)
 	gorilla.HandleFunc("/{actor}/peers/{peers}", peersHandler)
 	gorilla.HandleFunc("/{actor}/outbox", outboxHandler)
