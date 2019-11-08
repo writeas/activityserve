@@ -38,6 +38,8 @@ func PrettyPrintJSON(theJSON []byte) {
 	log.Info(dst)
 }
 
+// FormatJSON formats json with tabs and
+// returns the new string
 func FormatJSON(theJSON []byte) string {
 	dst := new(bytes.Buffer)
 	json.Indent(dst, theJSON, "", "\t")

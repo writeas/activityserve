@@ -286,22 +286,25 @@ func (a *Actor) save() error {
 }
 
 func (a *Actor) whoAmI() string {
-	return `{"@context":["https://www.w3.org/ns/activitystreams"],
-	"type": "` + a.actorType + `",
-	"id": "` + baseURL + a.Name + `",
-	"name": "` + a.Name + `",
-	"preferredUsername": "` + a.Name + `",
-	"summary": "` + a.summary + `",
-	"inbox": "` + baseURL + a.Name + `/inbox",
-	"outbox": "` + baseURL + a.Name + `/outbox",
-	"followers": "` + baseURL + a.Name + `/peers/followers",
-	"following": "` + baseURL + a.Name + `/peers/following",
-	"publicKey": {
-		"id": "` + baseURL + a.Name + `#main-key",
-		"owner": "` + baseURL + a.Name + `",
-		"publicKeyPem": "` + strings.ReplaceAll(a.publicKeyPem, "\n", "\\n") + `"
-	  }
-	}`
+
+	self := make(map[string]interface{})
+	self["@context"] = context()
+	self["type"] = a.actorType
+	self["id"] = baseURL + a.Name
+	self["name"] = a.Name
+	self["preferredUsername"] = a.Name
+	self["summary"] = a.summary
+	self["inbox"] = baseURL + a.Name + "/inbox"
+	self["outbox"] = baseURL + a.Name + "/outbox"
+	self["followers"] = baseURL + a.Name + "/peers/followers"
+	self["following"] = baseURL + a.Name + "/peers/following"
+	self["publicKey"] = map[string]string{
+		"id" : baseURL + a.Name + "#main-key",
+		"owner" : baseURL + a.Name,
+		"publicKeyPem" : strings.ReplaceAll(a.publicKeyPem, "\n", "\\n"),
+	}
+	selfString, _ := json.Marshal(self)
+	return string(selfString)
 }
 
 func (a *Actor) newItemID() (hash string, url string) {

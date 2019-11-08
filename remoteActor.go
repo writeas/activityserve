@@ -1,12 +1,13 @@
 package activityserve
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"github.com/gologme/log"
 	"net/http"
-	"encoding/json"
-	"bytes"
+
+	"github.com/gologme/log"
 )
 
 // RemoteActor is a type that holds an actor
@@ -36,7 +37,7 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 		endpoints = info["endpoints"].(map[string]interface{})
 		if val, ok := endpoints["sharedInbox"]; ok {
 			sharedInbox = val.(string)
-		} 
+		}
 	}
 
 	return RemoteActor{
@@ -60,7 +61,7 @@ func get(iri string) (info map[string]interface{}, err error) {
 		log.Info(err)
 		return
 	}
-	req.Header.Add("Accept", "application/activity+json; profile=\"https://www.w3.org/ns/activitystreams\"")
+	req.Header.Add("Accept", "application/activity+json")
 	req.Header.Add("User-Agent", userAgent+" "+version)
 	req.Header.Add("Accept-Charset", "utf-8")
 
