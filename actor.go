@@ -299,9 +299,9 @@ func (a *Actor) whoAmI() string {
 	self["followers"] = baseURL + a.Name + "/peers/followers"
 	self["following"] = baseURL + a.Name + "/peers/following"
 	self["publicKey"] = map[string]string{
-		"id" : baseURL + a.Name + "#main-key",
-		"owner" : baseURL + a.Name,
-		"publicKeyPem" : strings.ReplaceAll(a.publicKeyPem, "\n", "\\n"),
+		"id":           baseURL + a.Name + "#main-key",
+		"owner":        baseURL + a.Name,
+		"publicKeyPem": a.publicKeyPem,
 	}
 	selfString, _ := json.Marshal(self)
 	return string(selfString)

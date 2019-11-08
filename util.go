@@ -19,7 +19,8 @@ import (
 func isSuccess(code int) bool {
 	return code == http.StatusOK ||
 		code == http.StatusCreated ||
-		code == http.StatusAccepted
+		code == http.StatusAccepted ||
+		code == http.StatusNoContent
 }
 
 //PrettyPrint maps
