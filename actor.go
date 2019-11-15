@@ -18,9 +18,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 
 	"github.com/dchest/uniuri"
@@ -456,7 +454,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 		log.Info(err)
 		return
 	}
-	postSigner, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
+	postSigner, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
 
 	byteCopy := make([]byte, len(b))
 	copy(byteCopy, b)
@@ -480,11 +478,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 	req.Header.Add("Host", iri.Host)
 	req.Header.Add("Accept", "application/activity+json; charset=utf-8")
 	req.Header.Add("Content-Type", "application/activity+json; charset=utf-8")
-	sum := sha256.Sum256(b)
-	req.Header.Add("Digest",
-		fmt.Sprintf("SHA-256=%s",
-			base64.StdEncoding.EncodeToString(sum[:])))
-	err = postSigner.SignRequest(a.privateKey, a.publicKeyID, req)
+	err = postSigner.SignRequest(a.privateKey, a.publicKeyID, req, byteCopy)
 	if err != nil {
 		log.Info(err)
 		return
@@ -527,8 +521,8 @@ func (a *Actor) signedHTTPGet(address string) (string, error) {
 	req.Header.Add("Accept", "application/activity+json; profile=\"https://www.w3.org/ns/activitystreams\"")
 
 	// set up the http signer
-	signer, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
-	err = signer.SignRequest(a.privateKey, a.publicKeyID, req)
+	signer, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
+	err = signer.SignRequest(a.privateKey, a.publicKeyID, req, nil)
 	if err != nil {
 		log.Error("Can't sign the request")
 		return "", err
@@ -679,7 +673,7 @@ func (a *Actor) Unfollow(user string) {
 	undo := make(map[string]interface{})
 	undo["@context"] = context()
 	undo["actor"] = a.iri
-	undo["id"] = baseURL + "/item/" + hash + "/undo"
+	undo["id"] = baseURL + "item/" + hash + "/undo"
 	undo["type"] = "Undo"
 
 	follow := make(map[string]interface{})
