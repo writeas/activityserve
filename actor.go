@@ -680,7 +680,7 @@ func (a *Actor) Unfollow(user string) {
 
 	follow["@context"] = context()
 	follow["actor"] = a.iri
-	follow["id"] = baseURL + "/item/" + hash
+	follow["id"] = baseURL + "item/" + hash
 	follow["object"] = user
 	follow["type"] = "Follow"
 
