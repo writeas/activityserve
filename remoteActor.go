@@ -14,6 +14,7 @@ import (
 // that we want to interact with
 type RemoteActor struct {
 	iri, outbox, inbox, sharedInbox string
+	url                             string
 	info                            map[string]interface{}
 }
 
@@ -31,6 +32,7 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 
 	outbox, _ := info["outbox"].(string)
 	inbox, _ := info["inbox"].(string)
+	url, _ := info["url"].(string)
 	var endpoints map[string]interface{}
 	var sharedInbox string
 	if info["endpoints"] != nil {
@@ -45,6 +47,7 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 		outbox:      outbox,
 		inbox:       inbox,
 		sharedInbox: sharedInbox,
+		url:         url,
 	}, err
 }
 
@@ -105,4 +108,8 @@ func (ra RemoteActor) GetSharedInbox() string {
 		return ra.inbox
 	}
 	return ra.sharedInbox
+}
+
+func (ra RemoteActor) URL() string {
+	return ra.url
 }
