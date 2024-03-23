@@ -28,7 +28,7 @@ func Setup(configurationFile string, debug bool) *ini.File {
 		configurationFile = "config.ini"
 	}
 
-	cfg, err := ini.Load("config.ini")
+	cfg, err := ini.Load(configurationFile)
 	if err != nil {
 		fmt.Printf("Fail to read file: %v", err)
 		os.Exit(1)
