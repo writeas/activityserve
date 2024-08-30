@@ -454,7 +454,7 @@ func (a *Actor) signedHTTPPost(content map[string]interface{}, to string) (err e
 		log.Info(err)
 		return
 	}
-	postSigner, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
+	postSigner, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature, 0)
 
 	byteCopy := make([]byte, len(b))
 	copy(byteCopy, b)
@@ -521,7 +521,7 @@ func (a *Actor) signedHTTPGet(address string) (string, error) {
 	req.Header.Add("Accept", "application/activity+json; profile=\"https://www.w3.org/ns/activitystreams\"")
 
 	// set up the http signer
-	signer, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature)
+	signer, _, _ := httpsig.NewSigner([]httpsig.Algorithm{httpsig.RSA_SHA256}, "SHA-256", []string{"(request-target)", "date", "host", "digest"}, httpsig.Signature, 0)
 	err = signer.SignRequest(a.privateKey, a.publicKeyID, req, nil)
 	if err != nil {
 		log.Error("Can't sign the request")
