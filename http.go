@@ -269,7 +269,6 @@ func Serve(actors map[string]Actor) {
 		case "Create":
 			actor, ok := actors[mux.Vars(r)["actor"]] // load the actor from memory
 			if !ok {
-				// log.Error(actors)
 				log.Error("No such actor: " + mux.Vars(r)["actor"])
 				return
 			}
