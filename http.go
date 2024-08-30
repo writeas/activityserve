@@ -104,7 +104,7 @@ func Serve(actors map[string]Actor) {
 		totalLines, err := lineCounter(filename)
 		if err != nil {
 			log.Info("Can't read outbox.txt")
-			log.Info(err)
+			log.Error(err)
 			return
 		}
 		if pageStr == "" {
@@ -126,7 +126,7 @@ func Serve(actors map[string]Actor) {
 			lines, err := ReadLines(filename, (page-1)*postsPerPage, page*(postsPerPage+1)-1)
 			if err != nil {
 				log.Info("Can't read outbox file")
-				log.Info(err)
+				log.Error(err)
 				return
 			}
 			responseMap := make(map[string]interface{})
@@ -171,7 +171,7 @@ func Serve(actors map[string]Actor) {
 			response, err = json.Marshal(responseMap)
 			if err != nil {
 				log.Info("can't marshal map to json")
-				log.Info(err)
+				log.Error(err)
 				return
 			}
 		}
@@ -293,7 +293,7 @@ func Serve(actors map[string]Actor) {
 		actor, err := LoadActor(username)
 		// error out if this actor does not exist
 		if err != nil {
-			log.Info("Can't create local actor")
+			log.Errorf("Can't create local actor: %s", err)
 			return
 		}
 		var page int
@@ -314,7 +314,7 @@ func Serve(actors map[string]Actor) {
 		actor, err := LoadActor(username)
 		// error out if this actor does not exist
 		if err != nil {
-			log.Info("Can't create local actor")
+			log.Errorf("Can't create local actor: %s", err)
 			return
 		}
 		post, err := actor.loadItem(hash)
@@ -325,7 +325,7 @@ func Serve(actors map[string]Actor) {
 		}
 		postJSON, err := json.Marshal(post)
 		if err != nil {
-			log.Info("failed to marshal json from item " + hash + " text")
+			log.Errorf("failed to marshal json from item %s text", hash)
 			return
 		}
 		w.Write(postJSON)

@@ -25,7 +25,7 @@ func NewRemoteActor(iri string) (RemoteActor, error) {
 	info, err := get(iri)
 	if err != nil {
 		log.Info("Couldn't get remote actor information")
-		log.Info(err)
+		log.Error(err)
 		return RemoteActor{}, err
 	}
 
@@ -55,7 +55,6 @@ func (ra RemoteActor) getLatestPosts(number int) (map[string]interface{}, error)
 }
 
 func get(iri string) (info map[string]interface{}, err error) {
-
 	buf := new(bytes.Buffer)
 
 	req, err := http.NewRequest("GET", iri, buf)
@@ -68,10 +67,9 @@ func get(iri string) (info map[string]interface{}, err error) {
 	req.Header.Add("Accept-Charset", "utf-8")
 
 	resp, err := client.Do(req)
-
 	if err != nil {
 		log.Info("Cannot perform the request")
-		log.Info(err)
+		log.Error(err)
 		return
 	}
 
@@ -79,7 +77,7 @@ func get(iri string) (info map[string]interface{}, err error) {
 
 	if !isSuccess(resp.StatusCode) {
 		err = fmt.Errorf("GET request to %s failed (%d): %s\nResponse: %s \nHeaders: %s", iri, resp.StatusCode, resp.Status, FormatJSON(responseData), FormatHeaders(req.Header))
-		log.Info(err)
+		log.Error(err)
 		return
 	}
 
@@ -88,7 +86,7 @@ func get(iri string) (info map[string]interface{}, err error) {
 
 	if err != nil {
 		log.Info("something went wrong when unmarshalling the json")
-		log.Info(err)
+		log.Error(err)
 		return
 	}
 	info = e.(map[string]interface{})
