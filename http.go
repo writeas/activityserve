@@ -300,7 +300,10 @@ func Serve(actors map[string]Actor) {
 		if pageS == "" {
 			page = 0
 		} else {
-			page, _ = strconv.Atoi(pageS)
+			page, err = strconv.Atoi(pageS)
+			if err != nil {
+				page = 1
+			}
 		}
 		response, _ := actor.getPeers(page, collection)
 		w.Write(response)
