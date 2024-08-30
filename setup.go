@@ -58,7 +58,6 @@ func Setup(configurationFile string, debug bool) *ini.File {
 	// I prefer long file so that I can click it in the terminal and open it
 	// in the editor above
 	log.SetFlags(log.Llongfile)
-	// log.SetFlags(log.LstdFlags | log.Lshortfile)
 	log.EnableLevel("warn")
 	// create a logger with levels but without prefixes for easier to read
 	// debug output
