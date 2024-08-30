@@ -22,7 +22,6 @@ type RemoteActor struct {
 // all the info required for an actor we want to
 // interact with (not essentially sitting in our instance)
 func NewRemoteActor(iri string) (RemoteActor, error) {
-
 	info, err := get(iri)
 	if err != nil {
 		log.Info("Couldn't get remote actor information")

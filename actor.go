@@ -325,7 +325,6 @@ func (a *Actor) newID() (hash string, url string) {
 // TODO
 
 // CreateNote posts an activityPub note to our followers
-//
 func (a *Actor) CreateNote(content, inReplyTo string) {
 	// for now I will just write this to the outbox
 	hash, id := a.newItemID()

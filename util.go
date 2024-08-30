@@ -23,7 +23,7 @@ func isSuccess(code int) bool {
 		code == http.StatusNoContent
 }
 
-//PrettyPrint maps
+// PrettyPrint maps
 func PrettyPrint(themap map[string]interface{}) {
 	b, err := json.MarshalIndent(themap, "", "  ")
 	if err != nil {
@@ -32,7 +32,7 @@ func PrettyPrint(themap map[string]interface{}) {
 	log.Print(string(b))
 }
 
-//PrettyPrintJSON does what it's name says
+// PrettyPrintJSON does what it's name says
 func PrettyPrintJSON(theJSON []byte) {
 	dst := new(bytes.Buffer)
 	json.Indent(dst, theJSON, "", "\t")

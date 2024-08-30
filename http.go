@@ -241,7 +241,7 @@ func Serve(actors map[string]Actor) {
 			// pixelfed doesn't return the original follow thus the id is wrong so we
 			// need to just check if we requested this actor
 			if _, ok := actor.requested[acceptor]; !ok {
-				log.Info("We never requested this follow from " + acceptor +", ignoring the Accept")
+				log.Info("We never requested this follow from " + acceptor + ", ignoring the Accept")
 				return
 			}
 			// if pixelfed fixes https://github.com/pixelfed/pixelfed/issues/1710 we should uncomment
