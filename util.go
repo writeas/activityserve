@@ -2,18 +2,12 @@ package activityserve
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
+	"github.com/gologme/log"
 	"io"
 	"net/http"
 	"os"
-
-	// 	"net/url"
-	"bytes"
-	"encoding/json"
-
-	// 	"time"
-	// 	"fmt"
-	"github.com/gologme/log"
-	// 	"github.com/go-fed/httpsig"
 )
 
 func isSuccess(code int) bool {
